@@ -1,6 +1,6 @@
-tdl.require('tdl.io');
-tdl.require('tdl.log');
-tdl.require('tdl.sync');
+tdl.require("tdl.io");
+tdl.require("tdl.log");
+tdl.require("tdl.sync");
 
 // globals
 var g_syncManager;
@@ -29,7 +29,7 @@ var g_viewSettings = [
     fogBlue: 1,
     refractionFudge: 3,
     eta: 1,
-    tankColorFudge: 0.796
+    tankColorFudge: 0.796,
   },
   // Outside 1
   {
@@ -50,7 +50,7 @@ var g_viewSettings = [
     fogBlue: 1,
     refractionFudge: 3,
     eta: 1,
-    tankColorFudge: 1
+    tankColorFudge: 1,
   },
   // Inside Original
   {
@@ -71,7 +71,7 @@ var g_viewSettings = [
     fogBlue: 1,
     refractionFudge: 3,
     eta: 1,
-    tankColorFudge: 0.796
+    tankColorFudge: 0.796,
   },
   // Outside Original
   {
@@ -92,7 +92,7 @@ var g_viewSettings = [
     fogBlue: 1,
     refractionFudge: 3,
     eta: 1,
-    tankColorFudge: 1
+    tankColorFudge: 1,
   },
   // Center for LG
   {
@@ -113,7 +113,7 @@ var g_viewSettings = [
     fogBlue: 1,
     refractionFudge: 3,
     eta: 1,
-    tankColorFudge: 0.8
+    tankColorFudge: 0.8,
   },
   // Outside for LG
   {
@@ -134,8 +134,8 @@ var g_viewSettings = [
     fogBlue: 1,
     refractionFudge: 3,
     eta: 1,
-    tankColorFudge: 1
-  }
+    tankColorFudge: 1,
+  },
 ];
 
 var g = {
@@ -144,7 +144,7 @@ var g = {
     drawLasers: false,
     width: 1024,
     height: 1024,
-    fitWindow: false
+    fitWindow: false,
   },
   net: {
     timeout: 3000,
@@ -152,22 +152,22 @@ var g = {
     rotYMult: 0,
     offsetMult: 1.0,
     offset: [0, 0, 0],
-    port: 8080
+    port: 8080,
   },
   win: {
-    useDevicePixelRatio: true
+    useDevicePixelRatio: true,
   },
   fish: {},
   innerConst: {},
   options: {
-    normalMaps: { enabled: false, text: 'Normal Maps' },
-    reflection: { enabled: false, text: 'Reflection' },
-    tank:       { enabled: true,  text: 'Tank' },
-    museum:     { enabled: true,  text: 'Museum' },
-    fog:        { enabled: true,  text: 'Fog' },
-    bubbles:    { enabled: true,  text: 'Bubbles' },
-    lightRays:  { enabled: true,  text: 'Light Rays' }
-  }
+    normalMaps: { enabled: false, text: "Normal Maps" },
+    reflection: { enabled: false, text: "Reflection" },
+    tank: { enabled: true, text: "Tank" },
+    museum: { enabled: true, text: "Museum" },
+    fog: { enabled: true, text: "Fog" },
+    bubbles: { enabled: true, text: "Bubbles" },
+    lightRays: { enabled: true, text: "Light Rays" },
+  },
 };
 
 var g_uiWidgets = {};
@@ -176,7 +176,7 @@ function updateUI(settings) {
   function updateUIInner(obj, dst) {
     for (var name in obj) {
       var value = obj[name];
-      if (typeof value == 'object') {
+      if (typeof value == "object") {
         var newDst = dst[name];
         if (newDst) {
           updateUIInner(value, newDst);
@@ -204,7 +204,7 @@ function setViewSettings(index) {
   }
 
   var viewSettings = g_viewSettings[index];
-  setSettings({globals: viewSettings})
+  setSettings({ globals: viewSettings });
 }
 
 function advanceViewSettings() {
@@ -221,18 +221,18 @@ function resetViewSettings() {
  */
 function setSetting(elem, id) {
   switch (id) {
-  case 8:
-    break;
-  case 7:
-    advanceViewSettings();
-    break;
-  default:
-    g_numSettingElements[id] = elem;
-    setSettings({globals:{fishSetting:id}});
-    for (var otherElem in g_numSettingElements) {
-      g_numSettingElements[otherElem].style.color = "gray";
-    }
-    elem.style.color = "red";
+    case 8:
+      break;
+    case 7:
+      advanceViewSettings();
+      break;
+    default:
+      g_numSettingElements[id] = elem;
+      setSettings({ globals: { fishSetting: id } });
+      for (var otherElem in g_numSettingElements) {
+        g_numSettingElements[otherElem].style.color = "gray";
+      }
+      elem.style.color = "red";
   }
 }
 
@@ -241,7 +241,7 @@ function setSetting(elem, id) {
  */
 function initializeCommon() {
   if (g.net.sync) {
-    var protocol = window.location.protocol == "https:" ? "wss:" : "ws:" 
+    var protocol = window.location.protocol == "https:" ? "wss:" : "ws:";
     var url = protocol + window.location.host;
     tdl.log("server:", url);
     g_syncManager.init(url, g.net.slave);
@@ -257,14 +257,16 @@ function initializeCommon() {
 var g_event;
 
 function getParamId(id) {
-  return id.substr(6).replace(/(\w)/, function(m) {return m.toLowerCase() });
+  return id.substr(6).replace(/(\w)/, function (m) {
+    return m.toLowerCase();
+  });
 }
 
 function setParam(event, qui, ui, obj, valueElem) {
   var id = event.target.id;
   var value = qui.value / 1000;
   valueElem.innerHTML = value;
-  var inner = {}
+  var inner = {};
   var settings = {};
   settings[ui.obj] = inner;
   inner[ui.name] = value;
@@ -276,21 +278,22 @@ function getUIValue(obj, id) {
 }
 
 function setupSlider($, elem, ui, obj) {
-  var textDiv = document.createElement('div');
-  var labelDiv = document.createElement('span');
+  var textDiv = document.createElement("div");
+  var labelDiv = document.createElement("span");
   labelDiv.appendChild(document.createTextNode(ui.label || ui.name));
-  var valueDiv = document.createElement('span');
+  var valueDiv = document.createElement("span");
   valueDiv.appendChild(
-      document.createTextNode(getUIValue(obj, ui.name) / 1000));
+    document.createTextNode(getUIValue(obj, ui.name) / 1000)
+  );
   valueDiv.style.float = "right";
-  var sliderDiv = document.createElement('div');
+  var sliderDiv = document.createElement("div");
   sliderDiv.id = ui.name;
   textDiv.appendChild(labelDiv);
   textDiv.appendChild(valueDiv);
   elem.appendChild(textDiv);
   elem.appendChild(sliderDiv);
   if (!g_uiWidgets[ui.obj]) {
-    g_uiWidgets[ui.obj] = { };
+    g_uiWidgets[ui.obj] = {};
   }
   g_uiWidgets[ui.obj][ui.name] = sliderDiv;
   $(sliderDiv).slider({
@@ -299,19 +302,21 @@ function setupSlider($, elem, ui, obj) {
     max: ui.max * 1000,
     min: (ui.min || 0) * 1000,
     value: getUIValue(obj, ui.name),
-    slide: function(event, qui) { setParam(event, qui, ui, obj, valueDiv); }
+    slide: function (event, qui) {
+      setParam(event, qui, ui, obj, valueDiv);
+    },
   });
 }
 
 function AddUI(uiObj) {
-  var uiElem = document.getElementById('ui');
+  var uiElem = document.getElementById("ui");
   for (var ii = 0; ii < uiObj.length; ++ii) {
     var ui = uiObj[ii];
     var obj = g[ui.obj];
     if (!obj[ui.name]) {
       obj[ui.name] = ui.value;
     }
-    var div = document.createElement('div');
+    var div = document.createElement("div");
     setupSlider($, div, ui, obj);
     uiElem.appendChild(div);
   }
@@ -320,6 +325,3 @@ function AddUI(uiObj) {
 function setSettings(settings) {
   g_syncManager.setSettings(settings);
 }
-
-
-

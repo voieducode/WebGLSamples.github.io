@@ -1,29 +1,32 @@
 "use strict";
 
-tdl.require('tdl.buffers');
-tdl.require('tdl.clock');
-tdl.require('tdl.fast');
-tdl.require('tdl.fps');
-tdl.require('tdl.io');
-tdl.require('tdl.log');
-tdl.require('tdl.math');
-tdl.require('tdl.models');
-tdl.require('tdl.particles');
-tdl.require('tdl.primitives');
-tdl.require('tdl.programs');
-tdl.require('tdl.screenshot');
-tdl.require('tdl.sync');
-tdl.require('tdl.textures');
-tdl.require('tdl.webgl');
+tdl.require("tdl.buffers");
+tdl.require("tdl.clock");
+tdl.require("tdl.fast");
+tdl.require("tdl.fps");
+tdl.require("tdl.io");
+tdl.require("tdl.log");
+tdl.require("tdl.math");
+tdl.require("tdl.models");
+tdl.require("tdl.particles");
+tdl.require("tdl.primitives");
+tdl.require("tdl.programs");
+tdl.require("tdl.screenshot");
+tdl.require("tdl.sync");
+tdl.require("tdl.textures");
+tdl.require("tdl.webgl");
 
 const g_query = parseQueryString(window.location.search);
 
 function isMultiviewSupportEnabled() {
-  return g_aquariumConfig.enableVR || (g_query.enableMultiview && g_query.enableMultiview == 'true');
+  return (
+    g_aquariumConfig.enableVR ||
+    (g_query.enableMultiview && g_query.enableMultiview == "true")
+  );
 }
 
 if (isMultiviewSupportEnabled()) {
-  g.options.useMultiview = { enabled: true, text: 'Use multiview' };
+  g.options.useMultiview = { enabled: true, text: "Use multiview" };
 }
 
 function useMultiviewForStereo() {
@@ -31,23 +34,24 @@ function useMultiviewForStereo() {
 }
 
 // globals
-var gl;                   // the gl context.
-var multiview;            // multiview extension.
-var canvas;               // the canvas
-var math;                 // the math lib.
-var fast;                 // the fast math lib.
-var g_fpsTimer;           // object to measure frames per second;
-var g_logGLCalls = true   // whether or not to log webgl calls
-var g_debug = false;      // whether or not to debug.
+var gl; // the gl context.
+var multiview; // multiview extension.
+var canvas; // the canvas
+var math; // the math lib.
+var fast; // the fast math lib.
+var g_fpsTimer; // object to measure frames per second;
+var g_logGLCalls = true; // whether or not to log webgl calls
+var g_debug = false; // whether or not to debug.
 var g_setSettingElements = [];
 var g_numSettingElements = {};
-var g_scenes = {};  // each of the models
-var g_sceneGroups = {};  // the placement of the models
+var g_scenes = {}; // each of the models
+var g_sceneGroups = {}; // the placement of the models
 var g_fog = true;
 var g_numFish = [1, 100, 500, 1000, 5000, 10000, 15000, 20000, 25000, 30000];
 
 const searchParams = new URLSearchParams(window.location.search);
-var g_stereoDemoAvailable = searchParams.get("stereo-enabled")=="true" ?? false;
+var g_stereoDemoAvailable =
+  searchParams.get("stereo-enabled") == "true" ?? false;
 var g_stereoDemoActive = false;
 var g_shadersNeedUpdate = false; // Set to true whenever the state has changed so that shaders may need to be changed.
 
@@ -62,19 +66,19 @@ var g_frameData;
 var g_vrUi;
 var g_vrSupported = false;
 
-var g_multiviewFb;        // multiview framebuffer.
-var g_multiviewViewFb;    // single views inside the multiview framebuffer.
-var g_multiviewTex;       // Color texture for multiview framebuffer.
-var g_multiviewDepth;     // Depth texture for multiview framebuffer.
+var g_multiviewFb; // multiview framebuffer.
+var g_multiviewViewFb; // single views inside the multiview framebuffer.
+var g_multiviewTex; // Color texture for multiview framebuffer.
+var g_multiviewDepth; // Depth texture for multiview framebuffer.
 var g_multiviewFbWidth = 0;
 var g_multiviewFbHeight = 0;
 
 //g_debug = true;
 
-var g_tailOffsetMult   = 1;
-var g_tankRadius       = 74;
-var g_tankHeight       = 36;
-var g_numBubbleSets    = 10;
+var g_tailOffsetMult = 1;
+var g_tankRadius = 74;
+var g_tankHeight = 36;
+var g_numBubbleSets = 10;
 var g_laserEta = 1.2;
 var g_laserLenFudge = 1;
 var g_bubbleSets = [];
@@ -88,7 +92,7 @@ var g_lightRaySpread = 7;
 var g_lightRayPosRange = 20;
 var g_lightRayRotRange = 1.0;
 var g_lightRayRotLerp = 0.2;
-var g_lightRayOffset = Math.PI * 2 / g_numLightRays;
+var g_lightRayOffset = (Math.PI * 2) / g_numLightRays;
 var g_lightRayInfo = [];
 var g_session = null;
 var g_xrImmersiveRefSpace = null;
@@ -96,45 +100,45 @@ var g_startXRRendering = () => {};
 var g_onAnimationFrame = () => {};
 
 var g_ui = [
-  { obj: 'globals',    name: 'speed',           value: 1,     max:  4 },
-  { obj: 'globals',    name: 'targetHeight',    value: 0,     max:  150 },
-  { obj: 'globals',    name: 'targetRadius',    value: 88,    max:  200 },
-  { obj: 'globals',    name: 'eyeHeight',       value: 150,    max:  150 },
-  { obj: 'globals',    name: 'eyeRadius',       value: 60,    max:  200 },
-  { obj: 'globals',    name: 'eyeSpeed',        value: 0.06,  max:  1 },
-  { obj: 'globals',    name: 'fieldOfView',     value: 85,  max:  179, min: 1},
-  { obj: 'globals',    name: 'ambientRed',      value: 0.22,  max:  1},
-  { obj: 'globals',    name: 'ambientGreen',    value: 0.25,  max:  1},
-  { obj: 'globals',    name: 'ambientBlue',     value: 0.39,  max:  1},
-  { obj: 'globals',    name: 'fogPower',        value: 14.5,  max:  50},
-  { obj: 'globals',    name: 'fogMult',         value: 1.66,  max:  10},
-  { obj: 'globals',    name: 'fogOffset',       value: 0.53,  max:  3},
-  { obj: 'globals',    name: 'fogRed',          value: 0.54,  max:  1},
-  { obj: 'globals',    name: 'fogGreen',        value: 0.86,  max:  1},
-  { obj: 'globals',    name: 'fogBlue',         value: 1.0,   max:  1},
-  { obj: 'fish',       name: 'fishHeightRange', value: 1,     max:  3},
-  { obj: 'fish',       name: 'fishHeight',      value: 25,    max:  50},
-  { obj: 'fish',       name: 'fishSpeed',       value: 0.124, max:  2},
-  { obj: 'fish',       name: 'fishOffset',      value: 0.52,  max:  2},
-  { obj: 'fish',       name: 'fishXClock',      value: 1,     max:  2},
-  { obj: 'fish',       name: 'fishYClock',      value: 0.556, max:  2},
-  { obj: 'fish',       name: 'fishZClock',      value: 1,     max:  2},
-  { obj: 'fish',       name: 'fishTailSpeed',   value: 1,     max:  30},
-  { obj: 'innerConst', name: 'refractionFudge', value: 3,     max:  50},
-  { obj: 'innerConst', name: 'eta',             value: 1,     max:  1.2},
-  { obj: 'innerConst', name: 'tankColorFudge',  value: 0.8,   max:  2}
+  { obj: "globals", name: "speed", value: 1, max: 4 },
+  { obj: "globals", name: "targetHeight", value: 0, max: 150 },
+  { obj: "globals", name: "targetRadius", value: 88, max: 200 },
+  { obj: "globals", name: "eyeHeight", value: 150, max: 150 },
+  { obj: "globals", name: "eyeRadius", value: 60, max: 200 },
+  { obj: "globals", name: "eyeSpeed", value: 0.06, max: 1 },
+  { obj: "globals", name: "fieldOfView", value: 85, max: 179, min: 1 },
+  { obj: "globals", name: "ambientRed", value: 0.22, max: 1 },
+  { obj: "globals", name: "ambientGreen", value: 0.25, max: 1 },
+  { obj: "globals", name: "ambientBlue", value: 0.39, max: 1 },
+  { obj: "globals", name: "fogPower", value: 14.5, max: 50 },
+  { obj: "globals", name: "fogMult", value: 1.66, max: 10 },
+  { obj: "globals", name: "fogOffset", value: 0.53, max: 3 },
+  { obj: "globals", name: "fogRed", value: 0.54, max: 1 },
+  { obj: "globals", name: "fogGreen", value: 0.86, max: 1 },
+  { obj: "globals", name: "fogBlue", value: 1.0, max: 1 },
+  { obj: "fish", name: "fishHeightRange", value: 1, max: 3 },
+  { obj: "fish", name: "fishHeight", value: 25, max: 50 },
+  { obj: "fish", name: "fishSpeed", value: 0.124, max: 2 },
+  { obj: "fish", name: "fishOffset", value: 0.52, max: 2 },
+  { obj: "fish", name: "fishXClock", value: 1, max: 2 },
+  { obj: "fish", name: "fishYClock", value: 0.556, max: 2 },
+  { obj: "fish", name: "fishZClock", value: 1, max: 2 },
+  { obj: "fish", name: "fishTailSpeed", value: 1, max: 30 },
+  { obj: "innerConst", name: "refractionFudge", value: 3, max: 50 },
+  { obj: "innerConst", name: "eta", value: 1, max: 1.2 },
+  { obj: "innerConst", name: "tankColorFudge", value: 0.8, max: 2 },
 ];
 
 var g_netUI = [
-  { obj: 'net',    name: 'timeout',     value: 3000,  max:  3000},
-  { obj: 'net',    name: 'fovMult',     value: 1.21,  max:  2},
-  { obj: 'net',    name: 'fovFudge',    value: 1,     max:  2},
-  { obj: 'net',    name: 'offsetMult',  value: 1,     max:  2}
+  { obj: "net", name: "timeout", value: 3000, max: 3000 },
+  { obj: "net", name: "fovMult", value: 1.21, max: 2 },
+  { obj: "net", name: "fovFudge", value: 1, max: 2 },
+  { obj: "net", name: "offsetMult", value: 1, max: 2 },
 ];
 
 var g_fishTable = [
   {
-    name: 'SmallFishA',
+    name: "SmallFishA",
     speed: 1,
     speedRange: 1.5,
     radius: 30,
@@ -145,11 +149,11 @@ var g_fishTable = [
     constUniforms: {
       fishLength: 10,
       fishWaveLength: 1,
-      fishBendAmount: 2
-    }
+      fishBendAmount: 2,
+    },
   },
   {
-    name: 'MediumFishA',
+    name: "MediumFishA",
     speed: 1,
     speedRange: 2,
     radius: 10,
@@ -160,11 +164,11 @@ var g_fishTable = [
     constUniforms: {
       fishLength: 10,
       fishWaveLength: -2,
-      fishBendAmount: 2
-    }
+      fishBendAmount: 2,
+    },
   },
   {
-    name: 'MediumFishB',
+    name: "MediumFishB",
     speed: 0.5,
     speedRange: 4,
     radius: 10,
@@ -175,11 +179,11 @@ var g_fishTable = [
     constUniforms: {
       fishLength: 10,
       fishWaveLength: -2,
-      fishBendAmount: 2
-    }
+      fishBendAmount: 2,
+    },
   },
   {
-    name: 'BigFishA',
+    name: "BigFishA",
     speed: 0.5,
     speedRange: 0.5,
     radius: 50,
@@ -194,11 +198,11 @@ var g_fishTable = [
     constUniforms: {
       fishLength: 10,
       fishWaveLength: -1,
-      fishBendAmount: 0.5
-    }
+      fishBendAmount: 0.5,
+    },
   },
   {
-    name: 'BigFishB',
+    name: "BigFishB",
     speed: 0.5,
     speedRange: 0.5,
     radius: 45,
@@ -213,92 +217,70 @@ var g_fishTable = [
     constUniforms: {
       fishLength: 10,
       fishWaveLength: -0.7,
-      fishBendAmount: 0.3
-    }
+      fishBendAmount: 0.3,
+    },
   },
 ];
 
-var g_sceneInfoByName = {
-};
+var g_sceneInfoByName = {};
 
 var g_sceneInfo = [
   {
     name: "SmallFishA",
-    program: [
-      "fishVertexShader",
-      "fishReflectionFragmentShader"
-    ]
+    program: ["fishVertexShader", "fishReflectionFragmentShader"],
   },
   {
     name: "MediumFishA",
-    program: [
-      "fishVertexShader",
-      "fishNormalMapFragmentShader"
-    ]
+    program: ["fishVertexShader", "fishNormalMapFragmentShader"],
   },
   {
     name: "MediumFishB",
-    program: [
-      "fishVertexShader",
-      "fishReflectionFragmentShader"
-    ]
+    program: ["fishVertexShader", "fishReflectionFragmentShader"],
   },
   {
     name: "BigFishA",
-    program: [
-      "fishVertexShader",
-      "fishNormalMapFragmentShader"
-    ]
+    program: ["fishVertexShader", "fishNormalMapFragmentShader"],
   },
   {
     name: "BigFishB",
-    program: [
-      "fishVertexShader",
-      "fishNormalMapFragmentShader"
-    ]
+    program: ["fishVertexShader", "fishNormalMapFragmentShader"],
   },
   {
-    name: "Arch"
+    name: "Arch",
   },
   {
-    name: "Coral"
+    name: "Coral",
   },
   {
-    name: "CoralStoneA"
+    name: "CoralStoneA",
   },
   {
-    name: "CoralStoneB"
+    name: "CoralStoneB",
   },
   {
     name: "EnvironmentBox",
     fog: false,
     group: "outside",
-    program: [
-      "diffuseVertexShader",
-      "diffuseFragmentShader"
-    ]
+    program: ["diffuseVertexShader", "diffuseFragmentShader"],
   },
   {
-    name: "FloorBase_Baked"
+    name: "FloorBase_Baked",
   },
   {
-    name: "FloorCenter"
+    name: "FloorCenter",
   },
   {
     name: "GlobeBase",
     fog: false,
-    program: [
-      "diffuseVertexShader",
-      "diffuseFragmentShader"
-    ]
+    program: ["diffuseVertexShader", "diffuseFragmentShader"],
   },
   {
     name: "GlobeInner",
     group: "inner",
     program: [
       "innerRefractionMapVertexShader",
-      "innerRefractionMapFragmentShader"
-    ]
+      "innerRefractionMapFragmentShader",
+    ],
   },
   {
     name: "GlobeOuter",
@@ -306,79 +288,70 @@ var g_sceneInfo = [
     blend: true,
     program: [
       "outerRefractionMapVertexShader",
-      "outerRefractionMapFragmentShader"
-    ]
+      "outerRefractionMapFragmentShader",
+    ],
   },
   {
-    name: "RockA"
+    name: "RockA",
   },
   {
-    name: "RockB"
+    name: "RockB",
   },
   {
-    name: "RockC"
+    name: "RockC",
   },
   {
-    name: "RuinColumn"
+    name: "RuinColumn",
   },
   {
     name: "Skybox",
     fog: false,
     group: "outside",
-    program: [
-      "diffuseVertexShader",
-      "diffuseFragmentShader"
-    ]
+    program: ["diffuseVertexShader", "diffuseFragmentShader"],
   },
   {
-    name: "Stone"
+    name: "Stone",
   },
   {
-    name: "Stones"
+    name: "Stones",
   },
   {
-    name: "SunknShip"
+    name: "SunknShip",
   },
   {
-    name: "SunknSub"
+    name: "SunknSub",
   },
   {
     name: "SupportBeams",
     group: "outside",
-    fog: false
+    fog: false,
   },
   {
     name: "SeaweedA",
     blend: true,
     group: "seaweed",
-    program: [
-      "seaweedVertexShader",
-      "seaweedFragmentShader",
-    ]
+    program: ["seaweedVertexShader", "seaweedFragmentShader"],
   },
   {
     name: "SeaweedB",
     blend: true,
     group: "seaweed",
-    program: [
-      "seaweedVertexShader",
-      "seaweedFragmentShader",
-    ]
+    program: ["seaweedVertexShader", "seaweedFragmentShader"],
   },
   {
-    name: "TreasureChest"
-  }
+    name: "TreasureChest",
+  },
 ];
 
 var g_skyBoxUrls = [
-  g_aquariumConfig.aquariumRoot + 'assets/GlobeOuter_EM_positive_x.jpg',
-  g_aquariumConfig.aquariumRoot + 'assets/GlobeOuter_EM_negative_x.jpg',
-  g_aquariumConfig.aquariumRoot + 'assets/GlobeOuter_EM_positive_y.jpg',
-  g_aquariumConfig.aquariumRoot + 'assets/GlobeOuter_EM_negative_y.jpg',
-  g_aquariumConfig.aquariumRoot + 'assets/GlobeOuter_EM_positive_z.jpg',
-  g_aquariumConfig.aquariumRoot + 'assets/GlobeOuter_EM_negative_z.jpg'
-//  'static_assets/skybox/InteriorCubeEnv_EM.png'
-]
+  g_aquariumConfig.aquariumRoot + "assets/GlobeOuter_EM_positive_x.jpg",
+  g_aquariumConfig.aquariumRoot + "assets/GlobeOuter_EM_negative_x.jpg",
+  g_aquariumConfig.aquariumRoot + "assets/GlobeOuter_EM_positive_y.jpg",
+  g_aquariumConfig.aquariumRoot + "assets/GlobeOuter_EM_negative_y.jpg",
+  g_aquariumConfig.aquariumRoot + "assets/GlobeOuter_EM_positive_z.jpg",
+  g_aquariumConfig.aquariumRoot + "assets/GlobeOuter_EM_negative_z.jpg",
+  //  'static_assets/skybox/InteriorCubeEnv_EM.png'
+];
 
 function Log(msg) {
   if (g_logGLCalls) {
@@ -390,15 +363,15 @@ function getScriptText(id) {
   //tdl.log("loading: ", id);
   var elem = document.getElementById(id);
   if (!elem) {
-    throw 'no element: ' + id
+    throw "no element: " + id;
   }
   return elem.text;
 }
 
 function parseQueryString(s) {
   const q = {};
-  (s.startsWith('?') ? s.substring(1) : s).split('&').forEach(pair => {
-    const parts = pair.split('=').map(decodeURIComponent);
+  (s.startsWith("?") ? s.substring(1) : s).split("&").forEach((pair) => {
+    const parts = pair.split("=").map(decodeURIComponent);
     q[parts[0]] = parts[1];
   });
   return q;
@@ -407,17 +380,27 @@ function parseQueryString(s) {
 function ValidateNoneOfTheArgsAreUndefined(functionName, args) {
   for (var ii = 0; ii < args.length; ++ii) {
     if (args[ii] === undefined) {
-      tdl.error("undefined passed to gl." + functionName + "(" +
-                tdl.webgl.glFunctionArgsToString(functionName, args) + ")");
+      tdl.error(
+        "undefined passed to gl." +
+          functionName +
+          "(" +
+          tdl.webgl.glFunctionArgsToString(functionName, args) +
+          ")"
+      );
     }
   }
 }
 
 function LogGLCall(functionName, args) {
   if (g_logGLCalls) {
-    ValidateNoneOfTheArgsAreUndefined(functionName, args)
-    tdl.log("gl." + functionName + "(" +
-            tdl.webgl.glFunctionArgsToString(functionName, args) + ")");
+    ValidateNoneOfTheArgsAreUndefined(functionName, args);
+    tdl.log(
+      "gl." +
+        functionName +
+        "(" +
+        tdl.webgl.glFunctionArgsToString(functionName, args) +
+        ")"
+    );
   }
 }
 
@@ -432,24 +415,20 @@ function LogGLCall(functionName, args) {
 function raySphereIntersection(point1, point2, center, radius) {
   var kEpsilon = 0.0001;
   var dp = [
-      point2[0] - point1[0],
-      point2[1] - point1[1],
-      point2[2] - point1[2]];
-  var a = dp[0] * dp[0] +
-          dp[1] * dp[1] +
-          dp[2] * dp[2];
-  var b = 2 * (dp[0] * (point1[0] - center[0]) +
-               dp[1] * (point1[1] - center[1]) +
-               dp[2] * (point1[2] - center[2]));
-  var c = center[0] * center[0] +
-          center[1] * center[1] +
-          center[2] * center[2];
-  c += point1[0] * point1[0] +
-       point1[1] * point1[1] +
-       point1[2] * point1[2];
-  c -= 2 * (center[0] * point1[0] +
-            center[1] * point1[1] +
-            center[2] * point1[2]);
+    point2[0] - point1[0],
+    point2[1] - point1[1],
+    point2[2] - point1[2],
+  ];
+  var a = dp[0] * dp[0] + dp[1] * dp[1] + dp[2] * dp[2];
+  var b =
+    2 *
+    (dp[0] * (point1[0] - center[0]) +
+      dp[1] * (point1[1] - center[1]) +
+      dp[2] * (point1[2] - center[2]));
+  var c = center[0] * center[0] + center[1] * center[1] + center[2] * center[2];
+  c += point1[0] * point1[0] + point1[1] * point1[1] + point1[2] * point1[2];
+  c -=
+    2 * (center[0] * point1[0] + center[1] * point1[1] + center[2] * point1[2]);
   c -= radius * radius;
   var bb4ac = b * b - 4 * a * c;
   if (Math.abs(a) < kEpsilon || bb4ac < 0) {
@@ -471,8 +450,9 @@ function refract(i, n, eta) {
     return;
   }
   return math.subVector(
-      math.mulScalarVector(eta, i),
-      math.mulScalarVector(eta * dotNI + Math.sqrt(k), n));
+    math.mulScalarVector(eta, i),
+    math.mulScalarVector(eta * dotNI + Math.sqrt(k), n)
+  );
 }
 
 function setCanvasSize(canvas, newWidth, newHeight) {
@@ -496,31 +476,33 @@ function setCanvasSize(canvas, newWidth, newHeight) {
   return changed;
 }
 
-
 function createProgramFromTags(
-    vertexTagId,
-    fragmentTagId,
-    fog,
-    opt_reflection,
-    opt_normalMaps,
-    opt_multiview) {
-  opt_reflection = (opt_reflection === undefined) ? true : opt_reflection;
-  opt_normalMaps = (opt_normalMaps === undefined) ? true : opt_normalMaps;
-  opt_multiview = (opt_multiview === undefined) ? false : opt_multiview;
+  vertexTagId,
+  fragmentTagId,
+  fog,
+  opt_reflection,
+  opt_normalMaps,
+  opt_multiview
+) {
+  opt_reflection = opt_reflection === undefined ? true : opt_reflection;
+  opt_normalMaps = opt_normalMaps === undefined ? true : opt_normalMaps;
+  opt_multiview = opt_multiview === undefined ? false : opt_multiview;
 
-  var fogUniforms = '' +
-    'uniform float fogPower;\n' +
-    'uniform float fogMult;\n' +
-    'uniform float fogOffset;\n' +
-    'uniform vec4 fogColor;\n';
-  var fogCode = '' +
-    'outColor = mix(outColor, vec4(fogColor.rgb, diffuseColor.a),\n' +
-    '   clamp(pow((v_position.z / v_position.w), fogPower) * fogMult - fogOffset,0.0,1.0));\n';
-  var fs = getScriptText(fragmentTagId)
+  var fogUniforms =
+    "" +
+    "uniform float fogPower;\n" +
+    "uniform float fogMult;\n" +
+    "uniform float fogOffset;\n" +
+    "uniform vec4 fogColor;\n";
+  var fogCode =
+    "" +
+    "outColor = mix(outColor, vec4(fogColor.rgb, diffuseColor.a),\n" +
+    "   clamp(pow((v_position.z / v_position.w), fogPower) * fogMult - fogOffset,0.0,1.0));\n";
+  var fs = getScriptText(fragmentTagId);
 
   if (g_fog && fog) {
-    fs = fs.replace('// #fogUniforms', fogUniforms);
-    fs = fs.replace('// #fogCode', fogCode);
+    fs = fs.replace("// #fogUniforms", fogUniforms);
+    fs = fs.replace("// #fogCode", fogCode);
   }
 
   if (opt_reflection) {
@@ -542,43 +524,46 @@ function createProgramFromTags(
 
     var vsPrefix = ["#version 300 es"];
     if (opt_multiview) {
-        vsPrefix.push("#extension GL_OVR_multiview2 : require");
-        vsPrefix.push("layout(num_views = 2) in;");
+      vsPrefix.push("#extension GL_OVR_multiview2 : require");
+      vsPrefix.push("layout(num_views = 2) in;");
 
-        var addToMain = '';
-        if (vs.indexOf('uniform mat4 viewProjection;') >= 0) {
-            vs = vs.replace('uniform mat4 viewProjection;', 'uniform mat4 viewProjectionArray[2];\nmat4 viewProjection;');
-            addToMain += 'viewProjection = viewProjectionArray[gl_ViewID_OVR];';
-        }
+      var addToMain = "";
+      if (vs.indexOf("uniform mat4 viewProjection;") >= 0) {
+        vs = vs.replace(
+          "uniform mat4 viewProjection;",
+          "uniform mat4 viewProjectionArray[2];\nmat4 viewProjection;"
+        );
+        addToMain += "viewProjection = viewProjectionArray[gl_ViewID_OVR];";
+      }
 
-        if (addToMain.length > 0) {
-            vs = vs.replace('void main() {', 'void main() {\n' + addToMain);
-        }
+      if (addToMain.length > 0) {
+        vs = vs.replace("void main() {", "void main() {\n" + addToMain);
+      }
     }
-    vs = vsPrefix.join('\n') + vs;
+    vs = vsPrefix.join("\n") + vs;
 
-    vs = vs.replace(/attribute/g, 'in');
-    vs = vs.replace(/varying/g, 'out');
+    vs = vs.replace(/attribute/g, "in");
+    vs = vs.replace(/varying/g, "out");
 
     var fsPrefix = ["#version 300 es"];
     if (opt_multiview) {
-        fsPrefix.push("#extension GL_OVR_multiview2 : require");
+      fsPrefix.push("#extension GL_OVR_multiview2 : require");
     }
     fsPrefix.push("out mediump vec4 my_FragColor;");
-    fs = fsPrefix.join('\n') + fs;
-    fs = fs.replace(/varying/g, 'in');
-    fs = fs.replace(/gl_FragColor/g, 'my_FragColor');
+    fs = fsPrefix.join("\n") + fs;
+    fs = fs.replace(/varying/g, "in");
+    fs = fs.replace(/gl_FragColor/g, "my_FragColor");
 
-    vs = vs.replace(/textureCube\(/g, 'texture(');
-    vs = vs.replace(/texture2D\(/g, 'texture(');
-    fs = fs.replace(/textureCube\(/g, 'texture(');
-    fs = fs.replace(/texture2D\(/g, 'texture(');
+    vs = vs.replace(/textureCube\(/g, "texture(");
+    vs = vs.replace(/texture2D\(/g, "texture(");
+    fs = fs.replace(/textureCube\(/g, "texture(");
+    fs = fs.replace(/texture2D\(/g, "texture(");
   }
 
   return tdl.programs.loadProgram(vs, fs);
 }
 
-var Scene = function(opt_programIds, fog) {
+var Scene = function (opt_programIds, fog) {
   this.programIds = opt_programIds;
   this.bad = false;
   this.loaded = false;
@@ -587,53 +572,60 @@ var Scene = function(opt_programIds, fog) {
   this.ignore = false;
 };
 
-Scene.prototype.load = function(url) {
+Scene.prototype.load = function (url) {
   var that = this;
   this.url = url;
-  tdl.io.loadJSON(url, function(data, exception) {
-      that.onload_(data, exception);
-    });
+  tdl.io.loadJSON(url, function (data, exception) {
+    that.onload_(data, exception);
+  });
 };
 
 // Stop the scene from loading.
-Scene.prototype.stop = function() {
+Scene.prototype.stop = function () {
   this.ignore = false;
 };
 
-var ProgramSet = function(vsId, fsId, fogMask) {
+var ProgramSet = function (vsId, fsId, fogMask) {
   this.vsId = vsId;
   this.fsId = fsId;
   this.fogMask = fogMask; // If fogMask is false, then programs from this program set never have fog turned on.
   this.cache = {};
 };
 
-ProgramSet.prototype.getKey = function(shadingSettings) {
-  var key = 'p';
+ProgramSet.prototype.getKey = function (shadingSettings) {
+  var key = "p";
   if (this.fogMask && shadingSettings.fog) {
-    key += 'Fog';
+    key += "Fog";
   }
   if (shadingSettings.reflection) {
-    key += 'Reflect';
+    key += "Reflect";
   }
   if (shadingSettings.normalMap) {
-    key += 'Normalmap';
+    key += "Normalmap";
   }
   if (shadingSettings.multiview) {
-    key += 'Multiview';
+    key += "Multiview";
   }
   return key;
 };
 
-ProgramSet.prototype.getProgram = function(shadingSettings) {
+ProgramSet.prototype.getProgram = function (shadingSettings) {
   var key = this.getKey(shadingSettings);
   if (!this.cache.hasOwnProperty(key)) {
     var fog = this.fogMask && shadingSettings.fog;
-    this.cache[key] = createProgramFromTags(this.vsId, this.fsId, fog, shadingSettings.reflection, shadingSettings.normalMap, shadingSettings.multiview);
+    this.cache[key] = createProgramFromTags(
+      this.vsId,
+      this.fsId,
+      fog,
+      shadingSettings.reflection,
+      shadingSettings.normalMap,
+      shadingSettings.multiview
+    );
   }
   return this.cache[key];
 };
 
-Scene.prototype.onload_ = function(data, exception) {
+Scene.prototype.onload_ = function (data, exception) {
   if (this.ignore) {
     return;
   }
@@ -647,7 +639,9 @@ Scene.prototype.onload_ = function(data, exception) {
       var textures = {};
       for (var name in model.textures) {
         textures[name] = tdl.textures.loadTexture(
-            g_aquariumConfig.aquariumRoot + 'assets/' + model.textures[name], true);
+          g_aquariumConfig.aquariumRoot + "assets/" + model.textures[name],
+          true
+        );
       }
       // setup vertices
       var arrays = {};
@@ -656,7 +650,8 @@ Scene.prototype.onload_ = function(data, exception) {
         arrays[name] = new tdl.primitives.AttribBuffer(
           field.numComponents,
           field.data,
-          field.type);
+          field.type
+        );
       }
       var type;
       var vsId;
@@ -675,18 +670,17 @@ Scene.prototype.onload_ = function(data, exception) {
           throw "missing normalMap for: " + this.url;
         }
         type = "reflection";
-        vsId = 'reflectionMapVertexShader';
-        fsId = 'reflectionMapFragmentShader';
+        vsId = "reflectionMapVertexShader";
+        fsId = "reflectionMapFragmentShader";
         textures.skybox = tdl.textures.loadTexture(g_skyBoxUrls);
-
       } else if (textures.normalMap) {
         type = "normalMap";
-        vsId = 'normalMapVertexShader';
-        fsId = 'normalMapFragmentShader';
+        vsId = "normalMapVertexShader";
+        fsId = "normalMapFragmentShader";
       } else {
         type = "diffuse";
-        vsId = 'diffuseVertexShader';
-        fsId = 'diffuseFragmentShader';
+        vsId = "diffuseVertexShader";
+        fsId = "diffuseFragmentShader";
       }
 
       var programSet = new ProgramSet(vsId, fsId, this.fog);
@@ -706,7 +700,7 @@ function getShadingSettings(enableMultiview) {
     fog: g.options.fog.enabled,
     reflection: g.options.reflection.enabled,
     normalMap: g.options.normalMaps.enabled,
-    multiview: enableMultiview
+    multiview: enableMultiview,
   };
 }
 
@@ -719,41 +713,44 @@ function loadScene(name, opt_programIds, fog) {
 function loadScenes() {
   for (var ii = 0; ii < g_sceneInfo.length; ++ii) {
     var info = g_sceneInfo[ii];
-    var fog = (info.fog !== undefined) ? info.fog : true;
+    var fog = info.fog !== undefined ? info.fog : true;
     g_scenes[info.name] = loadScene(info.name, info.program, fog);
   }
 }
 
 function loadPlacement() {
-  tdl.io.loadJSON(g_aquariumConfig.aquariumRoot + 'assets/PropPlacement.js', function(json, exception) {
-    if (exception) {
-      throw exception
-    } else {
-      for (var ii = 0; ii < g_sceneInfo.length; ++ii) {
-        var info = g_sceneInfo[ii];
-        g_sceneInfoByName[info.name] = info;
-      }
-
-      var objects = json.objects;
-      for (var ii = 0; ii < objects.length; ++ii) {
-        var object = objects[ii];
-        var scene = g_scenes[object.name];
-        var info = g_sceneInfoByName[object.name];
-//tdl.log(object.name);
-        var groupName = info.group || 'base';
-        if (!g_sceneGroups[groupName]) {
-          g_sceneGroups[groupName] = [];
+  tdl.io.loadJSON(
+    g_aquariumConfig.aquariumRoot + "assets/PropPlacement.js",
+    function (json, exception) {
+      if (exception) {
+        throw exception;
+      } else {
+        for (var ii = 0; ii < g_sceneInfo.length; ++ii) {
+          var info = g_sceneInfo[ii];
+          g_sceneInfoByName[info.name] = info;
         }
-        var group = g_sceneGroups[groupName];
-        group.push(object);
+
+        var objects = json.objects;
+        for (var ii = 0; ii < objects.length; ++ii) {
+          var object = objects[ii];
+          var scene = g_scenes[object.name];
+          var info = g_sceneInfoByName[object.name];
+          //tdl.log(object.name);
+          var groupName = info.group || "base";
+          if (!g_sceneGroups[groupName]) {
+            g_sceneGroups[groupName] = [];
+          }
+          var group = g_sceneGroups[groupName];
+          group.push(object);
+        }
       }
     }
-  });
+  );
 }
 
 function initLightRay(info) {
   info.duration =
-      g_lightRayDurationMin + Math.random() * g_lightRayDurationRange;
+    g_lightRayDurationMin + Math.random() * g_lightRayDurationRange;
   info.timer = info.duration;
   var r = Math.random();
   info.rot = r * g_lightRayRotRange;
@@ -765,22 +762,29 @@ function initLightRay(info) {
  */
 function setupLaser() {
   var textures = {
-      colorMap: tdl.textures.loadTexture(g_aquariumConfig.aquariumRoot + 'static_assets/beam.png')};
+    colorMap: tdl.textures.loadTexture(
+      g_aquariumConfig.aquariumRoot + "static_assets/beam.png"
+    ),
+  };
   var beam1Arrays = tdl.primitives.createPlane(1, 1, 1, 1);
   delete beam1Arrays.normal;
-  tdl.primitives.reorient(beam1Arrays,
-        math.matrix4.translation([0, 0, 0.5]));
+  tdl.primitives.reorient(beam1Arrays, math.matrix4.translation([0, 0, 0.5]));
   var beam2Arrays = tdl.primitives.clone(beam1Arrays);
   var beam3Arrays = tdl.primitives.clone(beam1Arrays);
-  tdl.primitives.reorient(beam2Arrays,
-        math.matrix4.rotationZ(math.degToRad(120)));
-  tdl.primitives.reorient(beam3Arrays,
-        math.matrix4.rotationZ(math.degToRad(-120)));
-  var arrays = tdl.primitives.concat([
-      beam1Arrays,
-      beam2Arrays,
-      beam3Arrays]);
-  var programSet = new ProgramSet('laserVertexShader', 'laserFragmentShader', false);
+  tdl.primitives.reorient(
+    beam2Arrays,
+    math.matrix4.rotationZ(math.degToRad(120))
+  );
+  tdl.primitives.reorient(
+    beam3Arrays,
+    math.matrix4.rotationZ(math.degToRad(-120))
+  );
+  var arrays = tdl.primitives.concat([beam1Arrays, beam2Arrays, beam3Arrays]);
+  var programSet = new ProgramSet(
+    "laserVertexShader",
+    "laserFragmentShader",
+    false
+  );
   var program = programSet.getProgram(getShadingSettings(false));
   var model = new tdl.models.Model(program, arrays, textures);
   model.programSet = programSet;
@@ -789,22 +793,28 @@ function setupLaser() {
 
 function setupLightRay() {
   for (var ii = 0; ii < g_numLightRays; ++ii) {
-    var info = { };
+    var info = {};
     var l = ii / g_numLightRays;
     initLightRay(info);
     g_lightRayInfo[ii] = info;
   }
 
   var textures = {
-      colorMap: tdl.textures.loadTexture(g_aquariumConfig.aquariumRoot + 'assets/LightRay.png') };
+    colorMap: tdl.textures.loadTexture(
+      g_aquariumConfig.aquariumRoot + "assets/LightRay.png"
+    ),
+  };
   var arrays = tdl.primitives.createPlane(1, 1, 1, 1);
-  tdl.primitives.reorient(arrays,
-      [1, 0, 0, 0,
-       0, 0, -1, 0,
-       0, 1, 0, 0,
-       0, 0.5, 0, 1]);
+  tdl.primitives.reorient(
+    arrays,
+    [1, 0, 0, 0, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0.5, 0, 1]
+  );
   delete arrays.normal;
-  var programSet = new ProgramSet('texVertexShader', 'texFragmentShader', false);
+  var programSet = new ProgramSet(
+    "texVertexShader",
+    "texFragmentShader",
+    false
+  );
   var program = programSet.getProgram(getShadingSettings(false));
   var model = new tdl.models.Model(program, arrays, textures);
   model.programSet = programSet;
@@ -812,37 +822,36 @@ function setupLightRay() {
 }
 
 function setupBubbles(particleSystem) {
-    var texture = tdl.textures.loadTexture(g_aquariumConfig.aquariumRoot + 'static_assets/bubble.png');
-    var emitter = particleSystem.createParticleEmitter(texture.texture);
-    emitter.setTranslation(0, 0, 0);
-    emitter.setState(tdl.particles.ParticleStateIds.ADD);
-    emitter.setColorRamp(
-        [1, 1, 1, 1,
-         1, 1, 1, 1,
-         1, 1, 1, 1,
-         1, 1, 1, 1,
-         1, 1, 1, 1,
-         1, 1, 1, 0]);
-    emitter.setParameters({
-        numParticles: 100,
-        numFrames: 1,
-        frameDuration: 1000.0,
-        frameStartRange: 0,
-        lifeTime: 40,
-        startTime: 0,
-        startSize: 0.01,
-        startSizeRange: 0.01,
-        endSize: 0.4,
-        endSizeRange: 0.2,
-        position: [0,-2,0],
-        positionRange: [0.1,2,0.1],
-        acceleration: [0,0.05,0],
-        accelerationRange: [0,0.02,0],
-        velocityRange: [0.05,0,0.05],
-        colorMult: [0.7,0.8,1,1]});
-    for (var ii = 0; ii < g_numBubbleSets; ++ii) {
-        g_bubbleSets[ii] = emitter.createOneShot();
-    }
+  var texture = tdl.textures.loadTexture(
+    g_aquariumConfig.aquariumRoot + "static_assets/bubble.png"
+  );
+  var emitter = particleSystem.createParticleEmitter(texture.texture);
+  emitter.setTranslation(0, 0, 0);
+  emitter.setState(tdl.particles.ParticleStateIds.ADD);
+  emitter.setColorRamp([
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
+  ]);
+  emitter.setParameters({
+    numParticles: 100,
+    numFrames: 1,
+    frameDuration: 1000.0,
+    frameStartRange: 0,
+    lifeTime: 40,
+    startTime: 0,
+    startSize: 0.01,
+    startSizeRange: 0.01,
+    endSize: 0.4,
+    endSizeRange: 0.2,
+    position: [0, -2, 0],
+    positionRange: [0.1, 2, 0.1],
+    acceleration: [0, 0.05, 0],
+    accelerationRange: [0, 0.02, 0],
+    velocityRange: [0.05, 0, 0.05],
+    colorMult: [0.7, 0.8, 1, 1],
+  });
+  for (var ii = 0; ii < g_numBubbleSets; ++ii) {
+    g_bubbleSets[ii] = emitter.createOneShot();
+  }
 }
 
 function setViewSettings(index) {
@@ -852,7 +861,7 @@ function setViewSettings(index) {
   }
 
   var viewSettings = g_viewSettings[index];
-  setSettings({globals: viewSettings})
+  setSettings({ globals: viewSettings });
 }
 
 function advanceViewSettings() {
@@ -865,7 +874,7 @@ function advanceViewSettings() {
  */
 function setSetting(elem, id) {
   g_numSettingElements[id] = elem;
-  setSettings({globals:{fishSetting:id}});
+  setSettings({ globals: { fishSetting: id } });
   for (var otherElem in g_numSettingElements) {
     g_numSettingElements[otherElem].style.color = "gray";
   }
@@ -889,8 +898,13 @@ function main() {
 
   g_fpsTimer = new tdl.fps.FPSTimer();
   if (isMultiviewSupportEnabled()) {
-    gl = tdl.webgl.setupWebGL(canvas, {antialias: false, xrCompatible: true}, undefined, 'webgl2');
-    multiview = gl.getExtension('OVR_multiview2');
+    gl = tdl.webgl.setupWebGL(
+      canvas,
+      { antialias: false, xrCompatible: true },
+      undefined,
+      "webgl2"
+    );
+    multiview = gl.getExtension("OVR_multiview2");
   } else {
     gl = tdl.webgl.setupWebGL(canvas);
   }
@@ -912,7 +926,7 @@ function handleContextLost() {
     var scene = g_scenes[name];
     scene.stop();
   }
-  g_scenes = { };
+  g_scenes = {};
 }
 
 function handleContextRestored() {
@@ -958,7 +972,7 @@ function initialize() {
     parentElem.insertBefore(div, changeViewElem);
   });
 
-  g_fishTable.forEach(info => {
+  g_fishTable.forEach((info) => {
     info.fishData = [];
     info.num = [];
   });
@@ -978,7 +992,7 @@ function initialize() {
           numType = Math.min(numLeft, totalFish < 100 ? 1 : 2);
         } else if (type == "Medium") {
           if (totalFish < 1000) {
-            numType = Math.min(numLeft, totalFish / 10 | 0);
+            numType = Math.min(numLeft, (totalFish / 10) | 0);
           } else if (totalFish < 10000) {
             numType = Math.min(numLeft, 80);
           } else {
@@ -988,11 +1002,15 @@ function initialize() {
         numLeft = numLeft - numType;
         fishInfo.num.push(numType);
       });
-    })
+    });
   });
 
   var particleSystem = new tdl.particles.ParticleSystem(
-      gl, null, math.pseudoRandom, g_vrSupported);
+    gl,
+    null,
+    math.pseudoRandom,
+    g_vrSupported
+  );
   setupBubbles(particleSystem);
   var bubbleTimer = 0;
   var bubbleIndex = 0;
@@ -1019,7 +1037,7 @@ function initialize() {
   var viewProjectionArray = new Float32Array(32);
   var eyePosition = new Float32Array(3);
   var target = new Float32Array(3);
-  var up = new Float32Array([0,1,0]);
+  var up = new Float32Array([0, 1, 0]);
   var lightWorldPos = new Float32Array(3);
   var v3t0 = new Float32Array(3);
   var v3t1 = new Float32Array(3);
@@ -1028,20 +1046,21 @@ function initialize() {
   var m4t2 = new Float32Array(16);
   var m4t3 = new Float32Array(16);
   var zero4 = new Float32Array(4);
-  var one4 = new Float32Array([1,1,1,1]);
-  var colorMult = new Float32Array([1,1,1,1]);
+  var one4 = new Float32Array([1, 1, 1, 1]);
+  var colorMult = new Float32Array([1, 1, 1, 1]);
   var ambient = new Float32Array(4);
-  var fogColor = new Float32Array([1,1,1,1]);
+  var fogColor = new Float32Array([1, 1, 1, 1]);
 
   function createMultiviewConst(nonMultiviewConst) {
     var multiviewConst = {};
     for (var key in nonMultiviewConst) {
       if (nonMultiviewConst.hasOwnProperty(key)) {
-        if (key == 'viewProjection') {
+        if (key == "viewProjection") {
           if (nonMultiviewConst[key] == viewProjection) {
-            multiviewConst['viewProjectionArray'] = viewProjectionArray;
+            multiviewConst["viewProjectionArray"] = viewProjectionArray;
           } else if (nonMultiviewConst[key] == viewProjectionNoRotation) {
-            multiviewConst['viewProjectionArray'] = viewProjectionNoRotationArray;
+            multiviewConst["viewProjectionArray"] =
+              viewProjectionNoRotationArray;
           }
         } else {
           multiviewConst[key] = nonMultiviewConst[key];
@@ -1060,12 +1079,14 @@ function initialize() {
     specular: one4,
     shininess: 50,
     specularFactor: 1,
-    ambient: ambient};
+    ambient: ambient,
+  };
   var genericConstMultiview = createMultiviewConst(genericConst);
   var genericPer = {
     world: world,
     worldInverse: worldInverse,
-    worldInverseTranspose: worldInverseTranspose};
+    worldInverseTranspose: worldInverseTranspose,
+  };
 
   // outside uniforms.
   var outsideConst = {
@@ -1076,12 +1097,14 @@ function initialize() {
     specular: one4,
     shininess: 50,
     specularFactor: 0,
-    ambient: ambient};
+    ambient: ambient,
+  };
   var outsideConstMultiview = createMultiviewConst(outsideConst);
   var outsidePer = {
     world: world,
     worldInverse: worldInverse,
-    worldInverseTranspose: worldInverseTranspose};
+    worldInverseTranspose: worldInverseTranspose,
+  };
 
   // Seaweed uniforms.
   var seaweedConst = {
@@ -1092,12 +1115,14 @@ function initialize() {
     specular: one4,
     shininess: 50,
     specularFactor: 1,
-    ambient: ambient};
+    ambient: ambient,
+  };
   var seaweedConstMultiview = createMultiviewConst(seaweedConst);
   var seaweedPer = {
     world: world,
     worldInverse: worldInverse,
-    worldInverseTranspose: worldInverseTranspose};
+    worldInverseTranspose: worldInverseTranspose,
+  };
 
   // Laser uniforms
   var laserConst = {
@@ -1105,7 +1130,8 @@ function initialize() {
   };
   var laserConstMultiview = createMultiviewConst(laserConst);
   var laserPer = {
-    world: world};
+    world: world,
+  };
 
   // Inner uniforms.
   var innerConst = {
@@ -1118,13 +1144,14 @@ function initialize() {
     specularFactor: 1,
     refractionFudge: 0,
     eta: 0,
-    tankColorFudge: 0
+    tankColorFudge: 0,
   };
   var innerConstMultiview = createMultiviewConst(innerConst);
   var innerPer = {
     world: world,
     worldInverse: worldInverse,
-    worldInverseTranspose: worldInverseTranspose};
+    worldInverseTranspose: worldInverseTranspose,
+  };
 
   // Fish uniforms.
   var fishConst = {
@@ -1135,22 +1162,25 @@ function initialize() {
     specular: one4,
     shininess: 5,
     specularFactor: 0.3,
-    ambient: ambient};
+    ambient: ambient,
+  };
   var fishConstMultiview = createMultiviewConst(fishConst);
 
   var fishPer = {
     worldPosition: new Float32Array(3), //[0,0,0],
     nextPosition: new Float32Array(3), //[0,0,0],
-    scale: 1};
+    scale: 1,
+  };
 
   // lightRay uniforms.
   var lightRayConst = {
-    viewProjection: viewProjectionNoRotation
+    viewProjection: viewProjectionNoRotation,
   };
   var lightRayConstMultiview = createMultiviewConst(lightRayConst);
   var lightRayPer = {
     world: world,
-    colorMult: new Float32Array([1,1,1,1])};
+    colorMult: new Float32Array([1, 1, 1, 1]),
+  };
 
   function DrawGroup(group, constUniforms, perUniforms) {
     var numObjects = group.length;
@@ -1208,24 +1238,32 @@ function initialize() {
   function calculateViewMatrix(viewMatrix, q, v) {
     // According to webvr 1.1 spec, orientation is a quaternion.
     // 1. normalize orientation quaternion.
-    var normFactor = Math.sqrt(Math.pow(q[0], 2) + Math.pow(q[1], 2) + Math.pow(q[2], 2) + Math.pow(q[3], 2));
+    var normFactor = Math.sqrt(
+      Math.pow(q[0], 2) +
+        Math.pow(q[1], 2) +
+        Math.pow(q[2], 2) +
+        Math.pow(q[3], 2)
+    );
     var b = q[0] / normFactor;
     var c = q[1] / normFactor;
     var d = q[2] / normFactor;
     var a = q[3] / normFactor;
 
     //2. calculate rotation matrix and combine transform vector to generate view matrix.
-    viewMatrix[0] = Math.pow(a, 2) + Math.pow(b, 2) - Math.pow(c, 2) - Math.pow(d, 2);
+    viewMatrix[0] =
+      Math.pow(a, 2) + Math.pow(b, 2) - Math.pow(c, 2) - Math.pow(d, 2);
     viewMatrix[1] = 2 * b * c + 2 * a * d;
     viewMatrix[2] = 2 * b * d - 2 * a * c;
     viewMatrix[3] = 0;
     viewMatrix[4] = 2 * b * c - 2 * a * d;
-    viewMatrix[5] = Math.pow(a, 2) - Math.pow(b, 2) + Math.pow(c, 2) - Math.pow(d, 2);
+    viewMatrix[5] =
+      Math.pow(a, 2) - Math.pow(b, 2) + Math.pow(c, 2) - Math.pow(d, 2);
     viewMatrix[6] = 2 * c * d + 2 * a * b;
     viewMatrix[7] = 0;
     viewMatrix[8] = 2 * b * d + 2 * a * c;
     viewMatrix[9] = 2 * c * d - 2 * a * b;
-    viewMatrix[10] = Math.pow(a, 2) - Math.pow(b, 2) - Math.pow(c, 2) + Math.pow(d, 2);
+    viewMatrix[10] =
+      Math.pow(a, 2) - Math.pow(b, 2) - Math.pow(c, 2) + Math.pow(d, 2);
     viewMatrix[11] = 0;
     viewMatrix[12] = v[0];
     viewMatrix[13] = v[1];
@@ -1248,14 +1286,23 @@ function initialize() {
     lightRay.setProgram(lightRay.programSet.getProgram(shadingSettings));
   }
 
-  function render(projectionMatrix, viewInverseMatrix, useMultiview, pose,
-                  translationScale, floorAdjust, fishScale) {
+  function render(
+    projectionMatrix,
+    viewInverseMatrix,
+    useMultiview,
+    pose,
+    translationScale,
+    floorAdjust,
+    fishScale
+  ) {
     var genericConstInUse = useMultiview ? genericConstMultiview : genericConst;
     var outsideConstInUse = useMultiview ? outsideConstMultiview : outsideConst;
     var innerConstInUse = useMultiview ? innerConstMultiview : innerConst;
     var seaweedConstInUse = useMultiview ? seaweedConstMultiview : seaweedConst;
     var laserConstInUse = useMultiview ? laserConstMultiview : laserConst;
-    var lightRayConstInUse = useMultiview ? lightRayConstMultiview : lightRayConst;
+    var lightRayConstInUse = useMultiview
+      ? lightRayConstMultiview
+      : lightRayConst;
     var fishConstInUse = useMultiview ? fishConstMultiview : fishConst;
 
     ambient[0] = g.globals.ambientRed;
@@ -1263,7 +1310,7 @@ function initialize() {
     ambient[2] = g.globals.ambientBlue;
 
     gl.colorMask(true, true, true, true);
-    gl.clearColor(0,0.8,1,0);
+    gl.clearColor(0, 0.8, 1, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT);
 
     var presentingVR = g_session && g_session.isImmersive;
@@ -1271,8 +1318,15 @@ function initialize() {
     var uiMatrix = new Float32Array(16);
 
     if (useMultiview) {
-      for (var viewIndex = 0; viewIndex < projectionMatrix.length; ++viewIndex) {
-        fast.matrix4.copy(projectionArray[viewIndex], projectionMatrix[viewIndex]);
+      for (
+        var viewIndex = 0;
+        viewIndex < projectionMatrix.length;
+        ++viewIndex
+      ) {
+        fast.matrix4.copy(
+          projectionArray[viewIndex],
+          projectionMatrix[viewIndex]
+        );
       }
     } else {
       fast.matrix4.copy(projection, projectionMatrix);
@@ -1299,15 +1353,18 @@ function initialize() {
       // Hard coded FPS translation vector and pin the whole UI in front of the user in VR mode. This hard coded position
       // vector used only once here.
       calculateViewMatrix(uiMatrix, pose.orientation, [0, 0, 10]);
-      g_vrUi.render(projection, fast.matrix4.inverse(uiMatrix, uiMatrix), [pose.orientation]);
+      g_vrUi.render(projection, fast.matrix4.inverse(uiMatrix, uiMatrix), [
+        pose.orientation,
+      ]);
     }
     if (g.net.slave) {
       // compute X fov from y fov
       var fovy = math.degToRad(g.globals.fieldOfView * g.net.fovFudge);
-      var fovx = Math.atan(
-          Math.tan(fovy * 0.5) * canvas.clientWidth / canvas.clientHeight) * 2;
-      fast.matrix4.rotationY(
-          m4t0, g.net.rotYMult * fovx * -g.net.fovMult);
+      var fovx =
+        Math.atan(
+          (Math.tan(fovy * 0.5) * canvas.clientWidth) / canvas.clientHeight
+        ) * 2;
+      fast.matrix4.rotationY(m4t0, g.net.rotYMult * fovx * -g.net.fovMult);
       fast.matrix4.mul(viewInverse, m4t0, viewInverse);
     }
     fast.matrix4.inverse(view, viewInverse);
@@ -1341,23 +1398,23 @@ function initialize() {
     innerConstInUse.tankColorFudge = g.innerConst.tankColorFudge;
     innerConstInUse.refractionFudge = g.innerConst.refractionFudge;
     if (g_fog) {
-      genericConstInUse.fogPower  = g.globals.fogPower;
-      genericConstInUse.fogMult   = g.globals.fogMult;
+      genericConstInUse.fogPower = g.globals.fogPower;
+      genericConstInUse.fogMult = g.globals.fogMult;
       genericConstInUse.fogOffset = g.globals.fogOffset;
       genericConstInUse.fogOffset = g.globals.fogOffset;
-      genericConstInUse.fogColor  = fogColor;
-      fishConstInUse.fogPower     = g.globals.fogPower;
-      fishConstInUse.fogMult      = g.globals.fogMult;
-      fishConstInUse.fogOffset    = g.globals.fogOffset;
-      fishConstInUse.fogColor     = fogColor;
-      innerConstInUse.fogPower  = g.globals.fogPower;
-      innerConstInUse.fogMult   = g.globals.fogMult;
+      genericConstInUse.fogColor = fogColor;
+      fishConstInUse.fogPower = g.globals.fogPower;
+      fishConstInUse.fogMult = g.globals.fogMult;
+      fishConstInUse.fogOffset = g.globals.fogOffset;
+      fishConstInUse.fogColor = fogColor;
+      innerConstInUse.fogPower = g.globals.fogPower;
+      innerConstInUse.fogMult = g.globals.fogMult;
       innerConstInUse.fogOffset = g.globals.fogOffset;
-      innerConstInUse.fogColor  = fogColor;
-      seaweedConstInUse.fogPower  = g.globals.fogPower;
-      seaweedConstInUse.fogMult   = g.globals.fogMult;
+      innerConstInUse.fogColor = fogColor;
+      seaweedConstInUse.fogPower = g.globals.fogPower;
+      seaweedConstInUse.fogMult = g.globals.fogMult;
       seaweedConstInUse.fogOffset = g.globals.fogOffset;
-      seaweedConstInUse.fogColor  = fogColor;
+      seaweedConstInUse.fogColor = fogColor;
       fogColor[0] = g.globals.fogRed;
       fogColor[1] = g.globals.fogGreen;
       fogColor[2] = g.globals.fogBlue;
@@ -1425,22 +1482,20 @@ function initialize() {
           fishPer.scale = scale;
 
           fishPer.time =
-              ((clock + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
-              (Math.PI * 2);
+            ((clock + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
+            (Math.PI * 2);
           fish.draw(fishPer);
 
           if (g.drawLasers && fishInfo.lasers) {
             fishInfo.fishData[ii] = {
-              position: [
-                  fishPosition[0],
-                  fishPosition[1],
-                  fishPosition[2]],
+              position: [fishPosition[0], fishPosition[1], fishPosition[2]],
               target: [
-                  fishNextPosition[0],
-                  fishNextPosition[1],
-                  fishNextPosition[2]],
+                fishNextPosition[0],
+                fishNextPosition[1],
+                fishNextPosition[2],
+              ],
               scale: scale,
-              time: fishPer.time
+              time: fishPer.time,
             };
           }
         }
@@ -1491,48 +1546,55 @@ function initialize() {
               var off = [offset, fishInfo.laserOff[1], fishInfo.laserOff[2]];
 
               scale = 1;
-              fast.matrix4.mul(world,
+              fast.matrix4.mul(
+                world,
                 fast.matrix4.scaling(m4t1, [scale, scale, scale]),
-                fast.matrix4.cameraLookAt(
-                    m4t2, data.position, data.target, up));
+                fast.matrix4.cameraLookAt(m4t2, data.position, data.target, up)
+              );
               fast.matrix4.mul(
-                  m4t2,
-                  fast.matrix4.rotationY(
-                    m4t3, s * fishInfo.laserRot),
-                  fast.matrix4.translation(m4t1, off));
-              fast.matrix4.mul(
-                  world,
-                  m4t2,
-                  world);
+                m4t2,
+                fast.matrix4.rotationY(m4t3, s * fishInfo.laserRot),
+                fast.matrix4.translation(m4t1, off)
+              );
+              fast.matrix4.mul(world, m4t2, world);
 
-              var laserDir = math.normalize([world[8], world[9], world[10]])
-              var point1 = [
-                  world[12],
-                  world[13],
-                  world[14]];
+              var laserDir = math.normalize([world[8], world[9], world[10]]);
+              var point1 = [world[12], world[13], world[14]];
               var point2 = math.addVector(
-                  point1, math.mulVectorScalar(laserDir, 1000));
+                point1,
+                math.mulVectorScalar(laserDir, 1000)
+              );
               var intersection = raySphereIntersection(
-                  point1, point2, center, g_tankRadius);
+                point1,
+                point2,
+                center,
+                g_tankRadius
+              );
               if (intersection) {
-                var len = math.length(math.subVector(intersection, point1)) *
-                   g_laserLenFudge;
+                var len =
+                  math.length(math.subVector(intersection, point1)) *
+                  g_laserLenFudge;
                 fast.matrix4.mul(
-                    world,
-                    fast.matrix4.scaling(
-                        m4t0,
-                        [fishInfo.laserScale[0],
-                         fishInfo.laserScale[1],
-                         len]),
-                    world);
+                  world,
+                  fast.matrix4.scaling(m4t0, [
+                    fishInfo.laserScale[0],
+                    fishInfo.laserScale[1],
+                    len,
+                  ]),
+                  world
+                );
                 laser.draw(laserPer);
                 var surfaceNorm = math.normalize(intersection);
                 var newDir = refract(
-                    math.negativeVector(laserDir), surfaceNorm, g_laserEta);
+                  math.negativeVector(laserDir),
+                  surfaceNorm,
+                  g_laserEta
+                );
                 data.laser = {
                   position: intersection,
-                  target: newDir ? math.addVector(intersection, newDir) :
-                                   undefined
+                  target: newDir
+                    ? math.addVector(intersection, newDir)
+                    : undefined,
                 };
               }
             }
@@ -1555,7 +1617,12 @@ function initialize() {
 
     fast.matrix4.translation(world, [0, 0, 0]);
     if (g.options.bubbles.enabled) {
-      particleSystem.draw(useMultiview ? viewProjectionArray : viewProjection, world, viewInverse, useMultiview);
+      particleSystem.draw(
+        useMultiview ? viewProjectionArray : viewProjection,
+        world,
+        viewInverse,
+        useMultiview
+      );
     }
 
     gl.enable(gl.BLEND);
@@ -1567,7 +1634,11 @@ function initialize() {
       // compute a view with no rotation
       fast.matrix4.translation(m4t1, [view[12], view[13], view[14]]);
       if (useMultiview) {
-        for (var viewIndex = 0; viewIndex < projectionArray.length; ++viewIndex) {
+        for (
+          var viewIndex = 0;
+          viewIndex < projectionArray.length;
+          ++viewIndex
+        ) {
           fast.matrix4.mul(m4t0, m4t1, projectionArray[viewIndex]);
           viewProjectionNoRotationArray.set(m4t0, viewIndex * 16);
         }
@@ -1580,13 +1651,14 @@ function initialize() {
         var lerp = info.timer / info.duration;
         var y = Math.max(70, Math.min(120, g_lightRayY + g.globals.eyeHeight));
         fast.matrix4.mul(
-            m4t1,
-            fast.matrix4.rotationZ(m4t0, info.rot + lerp * g_lightRayRotLerp),
-            fast.matrix4.translation(m4t2, [info.x, y, 0])
+          m4t1,
+          fast.matrix4.rotationZ(m4t0, info.rot + lerp * g_lightRayRotLerp),
+          fast.matrix4.translation(m4t2, [info.x, y, 0])
         );
-        fast.matrix4.mul(world,
-            fast.matrix4.scaling(m4t0, [10, -100, 10]),
-            m4t1
+        fast.matrix4.mul(
+          world,
+          fast.matrix4.scaling(m4t0, [10, -100, 10]),
+          m4t1
         );
         lightRayPer.colorMult[3] = Math.sin(lerp * Math.PI);
         lightRay.draw(lightRayPer);
@@ -1629,10 +1701,12 @@ function initialize() {
                   world,
                   fast.matrix4.scaling(m4t1, [0.5, 0.5, 200]),
                   fast.matrix4.cameraLookAt(
-                      m4t0,
-                      laserInfo.position,
-                      laserInfo.target,
-                      up));
+                    m4t0,
+                    laserInfo.position,
+                    laserInfo.target,
+                    up
+                  )
+                );
                 laser.draw(laserPer);
               }
             }
@@ -1648,28 +1722,61 @@ function initialize() {
 
     // Set the alpha to 255.
     gl.colorMask(false, false, false, true);
-    gl.clearColor(0,0,0,1);
+    gl.clearColor(0, 0, 0, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     // turn off logging after 1 frame.
     g_logGLCalls = false;
   }
 
-  function renderStereo(leftProjectionMatrix, rightProjectionMatrix, viewInverseMatrix, pose) {
+  function renderStereo(
+    leftProjectionMatrix,
+    rightProjectionMatrix,
+    viewInverseMatrix,
+    pose
+  ) {
     if (useMultiviewForStereo()) {
       setupMultiviewFbIfNeeded();
       var halfWidth = Math.floor(canvas.width * 0.5);
       gl.bindFramebuffer(gl.FRAMEBUFFER, g_multiviewFb);
       gl.viewport(0, 0, halfWidth, canvas.height);
       gl.disable(gl.SCISSOR_TEST);
-      render([leftProjectionMatrix, rightProjectionMatrix], viewInverseMatrix, true, pose);
+      render(
+        [leftProjectionMatrix, rightProjectionMatrix],
+        viewInverseMatrix,
+        true,
+        pose
+      );
 
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, g_multiviewViewFb[0]);
-      gl.blitFramebuffer(0, 0, halfWidth, canvas.height, 0, 0, halfWidth, canvas.height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl.blitFramebuffer(
+        0,
+        0,
+        halfWidth,
+        canvas.height,
+        0,
+        0,
+        halfWidth,
+        canvas.height,
+        gl.COLOR_BUFFER_BIT,
+        gl.NEAREST
+      );
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, g_multiviewViewFb[1]);
-      gl.blitFramebuffer(0, 0, halfWidth, canvas.height, halfWidth, 0, canvas.width, canvas.height, gl.COLOR_BUFFER_BIT, gl.NEAREST);
-    } else { // not multiview
+      gl.blitFramebuffer(
+        0,
+        0,
+        halfWidth,
+        canvas.height,
+        halfWidth,
+        0,
+        canvas.width,
+        canvas.height,
+        gl.COLOR_BUFFER_BIT,
+        gl.NEAREST
+      );
+    } else {
+      // not multiview
       gl.viewport(0, 0, canvas.width * 0.5, canvas.height);
       gl.enable(gl.SCISSOR_TEST);
       gl.scissor(0, 0, canvas.width * 0.5, canvas.height);
@@ -1689,18 +1796,16 @@ function initialize() {
     target[1] = g.globals.targetHeight;
     target[2] = Math.cos(eyeClock + Math.PI) * g.globals.targetRadius;
 
-    fast.matrix4.cameraLookAt(
-      viewInverseMatrix,
-      eyePosition,
-      target,
-      up);
+    fast.matrix4.cameraLookAt(viewInverseMatrix, eyePosition, target, up);
   }
 
   function renderMono() {
     var near = 1;
     var far = 25000;
     var aspect = canvas.clientWidth / canvas.clientHeight;
-    var top = Math.tan(math.degToRad(g.globals.fieldOfView * g.net.fovFudge) * 0.5) * near;
+    var top =
+      Math.tan(math.degToRad(g.globals.fieldOfView * g.net.fovFudge) * 0.5) *
+      near;
     var bottom = -top;
     var left = aspect * bottom;
     var right = aspect * top;
@@ -1709,13 +1814,14 @@ function initialize() {
     var xOff = width * g.net.offset[0] * g.net.offsetMult;
     var yOff = height * g.net.offset[1] * g.net.offsetMult;
     fast.matrix4.frustum(
-        monoProjection,
-        left + xOff,
-        right + xOff,
-        bottom + yOff,
-        top + yOff,
-        near,
-        far);
+      monoProjection,
+      left + xOff,
+      right + xOff,
+      bottom + yOff,
+      top + yOff,
+      near,
+      far
+    );
 
     setToCameraLookAt(viewInverseTemp);
 
@@ -1740,7 +1846,7 @@ function initialize() {
 
     var now = theClock.getTime();
     var elapsedTime;
-    if(then == 0.0) {
+    if (then == 0.0) {
       elapsedTime = 0.0;
     } else {
       elapsedTime = now - then;
@@ -1774,7 +1880,6 @@ function initialize() {
 
       // TODO: Support VRUI when doing multiview rendering.
       if (!useMultiviewForStereo() && g_vrUi.isMenuMode) {
-
         // When VR UI in menu mode, UI need a cursor to help user do select operation. Currently, cursor uses
         // head-neck model which means a point in front of user and user could move the point by rotating their head(with HMD).
         // A click event will be triggered when user stare at a label 2 seconds.
@@ -1784,10 +1889,14 @@ function initialize() {
         var selectorDescription;
 
         // VR UI return whether there is an option been selected in VR mode.
-        var clickedLabel = g_vrUi.queryClickedLabel([0, 0, 0], g_frameData.pose.orientation);
+        var clickedLabel = g_vrUi.queryClickedLabel(
+          [0, 0, 0],
+          g_frameData.pose.orientation
+        );
         if (clickedLabel != null) {
           if (clickedLabel.isAdvancedSettings) {
-            selectorDescription = "#optionsContainer > div:contains(" + clickedLabel.name + ")";
+            selectorDescription =
+              "#optionsContainer > div:contains(" + clickedLabel.name + ")";
             $(selectorDescription).click();
           } else if (clickedLabel.name == "options") {
             $("#options").click();
@@ -1806,9 +1915,27 @@ function initialize() {
 
     for (const view of pose.views) {
       let xrViewport = glLayer.getViewport(view);
-      gl.viewport(xrViewport.x, xrViewport.y, xrViewport.width, xrViewport.height);
-      gl.scissor(xrViewport.x, xrViewport.y, xrViewport.width, xrViewport.height);
-      render(view.projectionMatrix, view.transform.matrix, false, view, 10, 0, 0.75);
+      gl.viewport(
+        xrViewport.x,
+        xrViewport.y,
+        xrViewport.width,
+        xrViewport.height
+      );
+      gl.scissor(
+        xrViewport.x,
+        xrViewport.y,
+        xrViewport.width,
+        xrViewport.height
+      );
+      render(
+        view.projectionMatrix,
+        view.transform.matrix,
+        false,
+        view,
+        10,
+        0,
+        0.75
+      );
     }
     session.requestAnimationFrame(onXRFrame);
   }
@@ -1818,7 +1945,7 @@ function initialize() {
   function onAnimationFrame() {
     var now = theClock.getTime();
     var elapsedTime;
-    if(then == 0.0) {
+    if (then == 0.0) {
       elapsedTime = 0.0;
     } else {
       elapsedTime = now - then;
@@ -1850,11 +1977,11 @@ function initialize() {
         bubbleTimer = 2 + Math.random() * 8;
         var radius = Math.random() * 50;
         var angle = Math.random() * Math.PI * 2;
-        fast.matrix4.translation(
-            world,
-            [Math.sin(angle) * radius,
-             0,
-             Math.cos(angle) * radius]);
+        fast.matrix4.translation(world, [
+          Math.sin(angle) * radius,
+          0,
+          Math.cos(angle) * radius,
+        ]);
         g_bubbleSets[bubbleIndex].trigger(world);
         ++bubbleIndex;
         bubbleIndex = bubbleIndex % g_numBubbleSets;
@@ -1869,8 +1996,12 @@ function initialize() {
     // If we are running > 40hz then turn on a few more options.
     if (setPretty && g_fpsTimer.averageFPS > 40) {
       setPretty = false;
-      if (!g.options.normalMaps.enabled) { g.options.normalMaps.toggle(); }
-      if (!g.options.reflection.enabled) { g.options.reflection.toggle(); }
+      if (!g.options.normalMaps.enabled) {
+        g.options.normalMaps.toggle();
+      }
+      if (!g.options.reflection.enabled) {
+        g.options.reflection.toggle();
+      }
     }
 
     g_requestId = requestAnimationFrame(onAnimationFrame);
@@ -1885,7 +2016,9 @@ function initialize() {
       var near = 1;
       var far = 25000;
       var aspect = (canvas.clientWidth * 0.5) / canvas.clientHeight;
-      var top = Math.tan(math.degToRad(g.globals.fieldOfView * g.net.fovFudge) * 0.5) * near;
+      var top =
+        Math.tan(math.degToRad(g.globals.fieldOfView * g.net.fovFudge) * 0.5) *
+        near;
       var bottom = -top;
       var left = aspect * bottom;
       var right = aspect * top;
@@ -1897,25 +2030,31 @@ function initialize() {
       // The matrices are used just to show stereo rendering on a 2D screen so performance can be tested. They are not usable for VR.
       var xSkew = 0.05;
       fast.matrix4.frustum(
-          leftProjectionStereoDemo,
-          left + xOff + xSkew,
-          right + xOff + xSkew,
-          bottom + yOff,
-          top + yOff,
-          near,
-          far);
+        leftProjectionStereoDemo,
+        left + xOff + xSkew,
+        right + xOff + xSkew,
+        bottom + yOff,
+        top + yOff,
+        near,
+        far
+      );
       fast.matrix4.frustum(
-          rightProjectionStereoDemo,
-          left + xOff - xSkew,
-          right + xOff - xSkew,
-          bottom + yOff,
-          top + yOff,
-          near,
-          far);
+        rightProjectionStereoDemo,
+        left + xOff - xSkew,
+        right + xOff - xSkew,
+        bottom + yOff,
+        top + yOff,
+        near,
+        far
+      );
 
       setToCameraLookAt(viewInverseTemp);
 
-      renderStereo(leftProjectionStereoDemo, rightProjectionStereoDemo, viewInverseTemp);
+      renderStereo(
+        leftProjectionStereoDemo,
+        rightProjectionStereoDemo,
+        viewInverseTemp
+      );
     } else {
       renderMono();
     }
@@ -1929,7 +2068,11 @@ function initialize() {
 function setupMultiviewFbIfNeeded() {
   var halfWidth = Math.floor(canvas.width * 0.5);
   if (!g_multiviewFb) {
-    console.log('Setting up multiview FBO with dimensions: ', halfWidth, canvas.height);
+    console.log(
+      "Setting up multiview FBO with dimensions: ",
+      halfWidth,
+      canvas.height
+    );
     g_multiviewFb = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, g_multiviewFb);
 
@@ -1937,32 +2080,99 @@ function setupMultiviewFbIfNeeded() {
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, g_multiviewTex);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, halfWidth, canvas.height, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-    multiview.framebufferTextureMultiviewOVR(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, g_multiviewTex, 0, 0, 2);
+    gl.texImage3D(
+      gl.TEXTURE_2D_ARRAY,
+      0,
+      gl.RGBA8,
+      halfWidth,
+      canvas.height,
+      2,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null
+    );
+    multiview.framebufferTextureMultiviewOVR(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      g_multiviewTex,
+      0,
+      0,
+      2
+    );
 
     g_multiviewDepth = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, g_multiviewDepth);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D_ARRAY, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.DEPTH24_STENCIL8, halfWidth, canvas.height, 2, 0, gl.DEPTH_STENCIL, gl.UNSIGNED_INT_24_8, null);
-    multiview.framebufferTextureMultiviewOVR(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, g_multiviewDepth, 0, 0, 2);
+    gl.texImage3D(
+      gl.TEXTURE_2D_ARRAY,
+      0,
+      gl.DEPTH24_STENCIL8,
+      halfWidth,
+      canvas.height,
+      2,
+      0,
+      gl.DEPTH_STENCIL,
+      gl.UNSIGNED_INT_24_8,
+      null
+    );
+    multiview.framebufferTextureMultiviewOVR(
+      gl.FRAMEBUFFER,
+      gl.DEPTH_STENCIL_ATTACHMENT,
+      g_multiviewDepth,
+      0,
+      0,
+      2
+    );
 
     g_multiviewViewFb = [null, null];
     for (var viewIndex = 0; viewIndex < 2; ++viewIndex) {
       g_multiviewViewFb[viewIndex] = gl.createFramebuffer();
       gl.bindFramebuffer(gl.FRAMEBUFFER, g_multiviewViewFb[viewIndex]);
-      gl.framebufferTextureLayer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, g_multiviewTex, 0, viewIndex);
+      gl.framebufferTextureLayer(
+        gl.FRAMEBUFFER,
+        gl.COLOR_ATTACHMENT0,
+        g_multiviewTex,
+        0,
+        viewIndex
+      );
     }
     g_multiviewFbWidth = halfWidth;
     g_multiviewFbHeight = canvas.height;
   }
-  if (g_multiviewFbWidth < halfWidth || g_multiviewFbHeight < canvas.height)
-  {
-    console.log('Updating multiview FBO with dimensions: ', halfWidth, canvas.height);
+  if (g_multiviewFbWidth < halfWidth || g_multiviewFbHeight < canvas.height) {
+    console.log(
+      "Updating multiview FBO with dimensions: ",
+      halfWidth,
+      canvas.height
+    );
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, g_multiviewTex);
-    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.RGBA8, halfWidth, canvas.height, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texImage3D(
+      gl.TEXTURE_2D_ARRAY,
+      0,
+      gl.RGBA8,
+      halfWidth,
+      canvas.height,
+      2,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      null
+    );
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, g_multiviewDepth);
-    gl.texImage3D(gl.TEXTURE_2D_ARRAY, 0, gl.DEPTH24_STENCIL8, halfWidth, canvas.height, 2, 0, gl.DEPTH_STENCIL, gl.UNSIGNED_INT_24_8, null);
+    gl.texImage3D(
+      gl.TEXTURE_2D_ARRAY,
+      0,
+      gl.DEPTH24_STENCIL8,
+      halfWidth,
+      canvas.height,
+      2,
+      0,
+      gl.DEPTH_STENCIL,
+      gl.UNSIGNED_INT_24_8,
+      null
+    );
     g_multiviewFbWidth = halfWidth;
     g_multiviewFbHeight = canvas.height;
   }
@@ -1979,10 +2189,11 @@ function setupCountButtons() {
       break;
     }
     g_setSettingElements.push(elem);
-    elem.onclick = function(elem, id) {
+    elem.onclick = (function (elem, id) {
       return function () {
         setSetting(elem, id);
-      }}(elem, ii);
+      };
+    })(elem, ii);
   }
 
   if (g_query.numFish) {
@@ -2002,15 +2213,15 @@ function initUIStuff() {
 
   setupCountButtons();
   var elem = document.getElementById("setSettingChangeView");
-  elem.onclick = function() {
+  elem.onclick = function () {
     advanceViewSettings();
   };
   advanceViewSettings();
 
   function toggleOption(name, option, elem) {
-    var options = { };
-    options[name] = {enabled:!option.enabled};
-    setSettings({options:options});
+    var options = {};
+    options[name] = { enabled: !option.enabled };
+    setSettings({ options: options });
     elem.style.color = option.enabled ? "red" : "gray";
     g_shadersNeedUpdate = true;
   }
@@ -2019,13 +2230,13 @@ function initUIStuff() {
   for (var name in g.options) {
     var option = g.options[name];
     option.name = name;
-    var div = document.createElement('div');
+    var div = document.createElement("div");
     div.appendChild(document.createTextNode("-" + option.text));
     div.style.color = option.enabled ? "red" : "gray";
-    div.setAttribute('class', "clickable");
+    div.setAttribute("class", "clickable");
 
     function toggle(name, option, div) {
-      return function() {
+      return function () {
         toggleOption(name, option, div);
         return false;
       };
@@ -2033,13 +2244,17 @@ function initUIStuff() {
 
     option.toggle = toggle(name, option, div);
     $(div).click(option.toggle);
-    div.onmousedown = function() { return false; };
-    div.onstartselect = function() { return false; };
+    div.onmousedown = function () {
+      return false;
+    };
+    div.onstartselect = function () {
+      return false;
+    };
     optionsContainer.appendChild(div);
   }
 }
 
-$(function(){
+$(function () {
   AddUI(g_ui);
 
   g_syncManager = new tdl.sync.SyncManager(g, updateUI);
@@ -2070,42 +2285,51 @@ $(function(){
     g.net.fovFudge = 1;
   }
 
-  $('#setSettingAdvanced').click(function() {
-      $("#uiContainer").toggle('slow'); return false; });
+  $("#setSettingAdvanced").click(function () {
+    $("#uiContainer").toggle("slow");
+    return false;
+  });
   $("#uiContainer").toggle();
-  $('#options').click(function() {
-      $("#optionsContainer").toggle(); return false; });
+  $("#options").click(function () {
+    $("#optionsContainer").toggle();
+    return false;
+  });
   $("#optionsContainer").toggle();
 
   if (g.net.ui === false) {
-    $('#topUI').hide();
+    $("#topUI").hide();
   } else {
-    $(document).keypress(function(event) {
-      if (event.which == 'l'.charCodeAt(0) ||
-          event.which == 'L'.charCodeAt(0)) {
-        setSettings({drawLasers: !g.drawLasers});
-      } else if (event.which == ' '.charCodeAt(0)) {
+    $(document).keypress(function (event) {
+      if (
+        event.which == "l".charCodeAt(0) ||
+        event.which == "L".charCodeAt(0)
+      ) {
+        setSettings({ drawLasers: !g.drawLasers });
+      } else if (event.which == " ".charCodeAt(0)) {
         advanceViewSettings();
-      } else if (event.which == 's'.charCodeAt(0) ||
-                 event.which == 'S'.charCodeAt(0)) {
-        tdl.screenshot.takeScreenshot(
-          document.getElementById("canvas"));
-      } else if (event.which == 'h'.charCodeAt(0) ||
-                 event.which == 'H'.charCodeAt(0)) {
-        $('#topUI').toggle();
+      } else if (
+        event.which == "s".charCodeAt(0) ||
+        event.which == "S".charCodeAt(0)
+      ) {
+        tdl.screenshot.takeScreenshot(document.getElementById("canvas"));
+      } else if (
+        event.which == "h".charCodeAt(0) ||
+        event.which == "H".charCodeAt(0)
+      ) {
+        $("#topUI").toggle();
       }
     });
   }
   main();
 });
 
-(function() {
+(function () {
   "use strict";
   var vrButton;
   var vrButtonURL;
   var stereoDemoButton;
 
-  function getButtonContainer () {
+  function getButtonContainer() {
     var buttonContainer = document.getElementById("vr-button-container");
     if (!buttonContainer) {
       buttonContainer = document.createElement("div");
@@ -2124,7 +2348,7 @@ $(function(){
     return buttonContainer;
   }
 
-  function addButtonElement (message, key, icon) {
+  function addButtonElement(message, key, icon) {
     var buttonElement = document.createElement("div");
     buttonElement.classList.add = "vr-button";
     buttonElement.style.color = "#FFF";
@@ -2160,7 +2384,7 @@ $(function(){
     return buttonElement;
   }
 
-  function addButton (message, key, icon, callback) {
+  function addButton(message, key, icon, callback) {
     var keyListener = null;
     if (key) {
       var keyCode = key.charCodeAt(0);
@@ -2172,20 +2396,23 @@ $(function(){
       document.addEventListener("keydown", keyListener, false);
     }
     var element = addButtonElement(message, key, icon);
-    element.addEventListener("click", function (event) {
-      callback(event);
-      event.preventDefault();
-    }, false);
+    element.addEventListener(
+      "click",
+      function (event) {
+        callback(event);
+        event.preventDefault();
+      },
+      false
+    );
 
     return {
       element: element,
-      keyListener: keyListener
+      keyListener: keyListener,
     };
   }
 
-  function removeButton (button) {
-    if (!button)
-      return;
+  function removeButton(button) {
+    if (!button) return;
     if (button.element.parentElement)
       button.element.parentElement.removeChild(button.element);
     if (button.keyListener)
@@ -2194,15 +2421,17 @@ $(function(){
 
   function getCurrentUrl() {
     var path = window.location.pathname;
-    return path.substring(0, path.lastIndexOf('/'));
+    return path.substring(0, path.lastIndexOf("/"));
   }
 
   vrButtonURL = getCurrentUrl() + "/../aquarium-vr/vr_assets/button.png";
 
   function onRequestPresent() {
-    return navigator.xr.requestSession('immersive-vr', {
-      requiredFeatures: ['local-floor']
-    }).then((session) => {
+    return navigator.xr
+      .requestSession("immersive-vr", {
+        requiredFeatures: ["local-floor"],
+      })
+      .then((session) => {
         removeButton(vrButton);
         vrButton = addButton("Exit VR", "E", vrButtonURL, onExitPresent);
         session.isImmersive = true;
@@ -2210,15 +2439,15 @@ $(function(){
 
         session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
 
-        let refSpaceType = 'local-floor';
+        let refSpaceType = "local-floor";
         session.requestReferenceSpace(refSpaceType).then((refSpace) => {
-          g_xrImmersiveRefSpace = refSpace
+          g_xrImmersiveRefSpace = refSpace;
           g_shadersNeedUpdate = true;
           g.globals.eyeRadius = 0;
           session.requestAnimationFrame(g_startXRRendering);
         });
-        session.addEventListener('end', onSessionEnded);
-    });
+        session.addEventListener("end", onSessionEnded);
+      });
   }
 
   function onExitPresent() {
@@ -2236,7 +2465,7 @@ $(function(){
     vrButton ?? removeButton(vrButton);
     // Checks to ensure that 'immersive-ar' mode is available, and only
     // enables the button if so.
-    navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+    navigator.xr.isSessionSupported("immersive-vr").then((supported) => {
       if (supported) {
         vrButton = addButton("Enter VR", "E", vrButtonURL, onRequestPresent);
         g_vrUi = new Ui(gl, g_numFish);
@@ -2269,25 +2498,41 @@ $(function(){
       if (navigator.xr) {
         // Checks to ensure that 'immersive-ar' mode is available, and only
         // enables the button if so.
-        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+        navigator.xr.isSessionSupported("immersive-vr").then((supported) => {
           if (supported) {
-            vrButton = addButton("Enter VR", "E", vrButtonURL, onRequestPresent);
+            vrButton = addButton(
+              "Enter VR",
+              "E",
+              vrButtonURL,
+              onRequestPresent
+            );
             g_vrUi = new Ui(gl, g_numFish);
             g_vrUi.load("./vr_assets/ui/config.js");
             g_vrSupported = true;
           }
         });
-        navigator.xr.addEventListener('devicechange', onDeviceChange);
+        navigator.xr.addEventListener("devicechange", onDeviceChange);
       }
       // Regardless of if we have WebVR support, we can demonstrate stereo rendering inside the window if enable-stereo param is included in url
       if (g_stereoDemoAvailable) {
-        stereoDemoButton = addButton("Toggle Stereo Demo", "", vrButtonURL, toggleStereoDemo);
+        stereoDemoButton = addButton(
+          "Toggle Stereo Demo",
+          "",
+          vrButtonURL,
+          toggleStereoDemo
+        );
       }
     }
-    window.addEventListener('resize', function() {onResize();}, false);
+    window.addEventListener(
+      "resize",
+      function () {
+        onResize();
+      },
+      false
+    );
     onResize();
     resize();
   }
 
-  window.addEventListener('DOMContentLoaded', initPostDOMLoaded, false);
+  window.addEventListener("DOMContentLoaded", initPostDOMLoaded, false);
 })();
