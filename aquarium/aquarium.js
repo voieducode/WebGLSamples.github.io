@@ -359,6 +359,8 @@ var g_initialClockMs;
 var g_dataStartTime;
 var g_dataEndTime;
 var g_dataTimestamps;
+var g_dataCurrentTimeDisplay = '--';
+var g_dataFishCount = 0;
 
 function Log(msg) {
   if (g_logGLCalls) {
@@ -1026,6 +1028,7 @@ function initialize() {
   var then = 0.0;
   var clock = 0.0;
   var fpsElem = document.getElementById("fps");
+  var timeElem = document.getElementById("time");
 
   var monoProjection = new Float32Array(16);
   var leftProjectionStereoDemo = new Float32Array(16);
@@ -1248,6 +1251,26 @@ function initialize() {
   // Precompute fish configurations for each timestamp
 
   precomputeFishConfigs(now);
+
+  if (g_fishConfigs.length > 0) {
+    // Hide the number of fish controls if we have fish configs
+
+    const fishCountDiv = document.getElementById("fishCountDiv");
+    fishCountDiv.style.display = "block";
+    const fishCount = document.getElementById("fishCount");
+    fishCount.textContent = g_dataFishCount;
+
+    const numFishLabel = document.getElementById("numFishLabel");
+    numFishLabel.style.display = "none";
+
+    g_numFish.forEach((numFish, ndx) => {
+      const settingId = "setSetting" + ndx;
+      const settingElem = document.getElementById(settingId);
+      if (settingElem) {
+        settingElem.style.display = "none";
+      }
+    });
+  }
 
   function calculateViewMatrix(viewMatrix, q, v) {
     // According to webvr 1.1 spec, orientation is a quaternion.
@@ -1971,6 +1994,7 @@ function initialize() {
     frameCount++;
     g_fpsTimer.update(elapsedTime);
     fpsElem.innerHTML = g_fpsTimer.averageFPS;
+    timeElem.innerHTML = g_dataCurrentTimeDisplay;
 
     if (g_shadersNeedUpdate) {
       setShaders(true);
@@ -2098,6 +2122,7 @@ function initialize() {
 
     g_fpsTimer.update(elapsedTime);
     fpsElem.innerHTML = g_fpsTimer.averageFPS;
+    timeElem.innerHTML = g_dataCurrentTimeDisplay;
 
     // If we are running > 40hz then turn on a few more options.
     if (setPretty && g_fpsTimer.averageFPS > 40) {
@@ -2840,6 +2865,8 @@ function precomputeFishConfigs(clockSeconds) {
   g_dataStartTime = startTime;
   g_dataEndTime = endTime;
   g_initialClockMs = clockSeconds * 1000;
+  g_dataCurrentTimeDisplay = tsToTimeString(startTime);
+  g_dataFishCount = lastKnownConfigs.size;
 
   console.log(
     "DBG initial clock=",
@@ -2905,7 +2932,13 @@ function getConfigsAtClock(clockFromZero) {
   const matchedTimestamp =
     g_dataTimestamps[leftDiff < rightDiff ? left : right];
 
+  g_dataCurrentTimeDisplay = tsToTimeString(matchedTimestamp);
+
   return g_fishConfigs.filter(
     (config) => config.timestamp === matchedTimestamp
   );
+}
+
+function tsToTimeString(ts) {
+  return new Date(ts).toLocaleString();
 }
