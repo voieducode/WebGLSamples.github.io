@@ -353,6 +353,15 @@ var g_skyBoxUrls = [
   //  'static_assets/skybox/InteriorCubeEnv_EM.png'
 ];
 
+var g_csvData = loadCSVData();
+
+// Precompute fish configurations for each timestamp
+var g_fishConfigs = precomputeFishConfigs();
+var g_simulationStartTime = 0;
+var g_simulationTimeScale = 1 / 60; // 1 minute real time = 1 second simulation time
+
+console.log("g_fishConfigs len=", g_fishConfigs.length, " first 10:", g_fishConfigs.slice(0, 10));
+
 function Log(msg) {
   if (g_logGLCalls) {
     tdl.log(msg);
@@ -2555,3 +2564,139 @@ $(function () {
 
   window.addEventListener("DOMContentLoaded", initPostDOMLoaded, false);
 })();
+
+function parseCSVToJSON(csvText) {
+  // Split the CSV text into lines and remove empty lines
+  const lines = csvText.split("\n").filter((line) => line.trim());
+
+  // Get field names from the first line
+  const fieldNames = lines[0].split(",").map((name) => name.trim());
+
+  // Parse the data rows into objects
+  const data = lines.slice(1).map((line) => {
+    const values = line.split(",");
+    const obj = {};
+
+    fieldNames.forEach((name, index) => {
+      // Convert numeric values
+      if (name === "Time" || name === "FarmLatency95" || name === "CPU") {
+        obj[name] = parseFloat(values[index]);
+      } else {
+        obj[name] = values[index].trim();
+      }
+    });
+
+    return obj;
+  });
+
+  return data;
+}
+
+// Function to load and parse the CSV file synchronously
+function loadCSVData() {
+  const xhr = new XMLHttpRequest();
+  xhr.open("GET", "data.csv", false); // false makes the request synchronous
+  xhr.send();
+
+  if (xhr.status === 200) {
+    const csvText = xhr.responseText;
+    const data = parseCSVToJSON(csvText);
+    console.log(
+      "Loaded CSV data: len=",
+      data.length,
+      "first 10:",
+      data.slice(0, 10)
+    );
+    return data;
+  } else {
+    console.error("Error loading CSV data:", xhr.status);
+    return [];
+  }
+}
+
+// Precompute fish configurations from CSV data
+function precomputeFishConfigs() {
+  if (!g_csvData || g_csvData.length === 0) {
+    console.error("No CSV data available");
+    return;
+  }
+  // Set simulation start time to first timestamp
+  g_simulationStartTime = g_csvData[0].Time;
+
+  const getFishModel = (sizeBucket) => {
+    if (sizeBucket === "very small") return "SmallFishA";
+    if (sizeBucket === "small") return "MediumFishA";
+    if (sizeBucket === "medium") return "MediumFishB";
+    if (sizeBucket === "large") return "BigFishA";
+    if (sizeBucket === "very large") return "BigFishB";
+    return "SmallFishA";
+  };
+
+  const getSpeedMultiplier = (speedBucket) => {
+    if (speedBucket === "very slow") return 0.25;
+    if (speedBucket === "slow") return 0.5;
+    if (speedBucket === "average") return 1.0;
+    if (speedBucket === "fast") return 1.5;
+    if (speedBucket === "very fast") return 4.0;
+    return 1.0;
+  };
+
+  const getFishColor = (speedBucket) => {
+    if (speedBucket === "very slow") return [1.0, 0.0, 0.0, 1.0]; // Red
+    if (speedBucket === "slow") return [1.0, 0.5, 0.0, 1.0]; // Orange
+    if (speedBucket === "average") return [1.0, 1.0, 0.0, 1.0]; // Yellow
+    if (speedBucket === "fast") return [0.0, 1.0, 0.5, 1.0]; // Light Green
+    if (speedBucket === "very fast") return [0.0, 1.0, 0.0, 1.0]; // Green
+    return [1.0, 1.0, 1.0, 1.0]; // Default to white
+  };
+
+  // Create configurations for each timestamp
+  g_fishConfigs = g_csvData.map((entry) => {
+    return {
+      name: entry.Name,
+      fishModel: getFishModel(entry.SizeBucket),
+      speedMultiplier: getSpeedMultiplier(entry.SpeedBucket),
+      color: getFishColor(entry.SpeedBucket),
+      timestamp: entry.Time,
+    };
+  });
+
+  // Interpolate configurations between timestamps
+  const interpolatedConfigs = [];
+  for (let i = 0; i < g_fishConfigs.length - 1; i++) {
+    const current = g_fishConfigs[i];
+    const next = g_fishConfigs[i + 1];
+    const timeDiff = next.timestamp - current.timestamp;
+
+    // Add current config
+    interpolatedConfigs.push(current);
+
+    // Interpolate between timestamps
+    if (timeDiff > 60000) {
+      // If more than 1 minute between timestamps
+      const numInterpolations = Math.floor(timeDiff / 60000) - 1;
+      for (let j = 0; j < numInterpolations; j++) {
+        const t = (j + 1) / (numInterpolations + 1);
+        interpolatedConfigs.push({
+          name: current.name,
+          fishModel: current.fishModel,
+          speedMultiplier:
+            current.speedMultiplier +
+            (next.speedMultiplier - current.speedMultiplier) * t,
+          color: [
+            current.color[0] + (next.color[0] - current.color[0]) * t,
+            current.color[1] + (next.color[1] - current.color[1]) * t,
+            current.color[2] + (next.color[2] - current.color[2]) * t,
+            1.0,
+          ],
+          timestamp: current.timestamp + (j + 1) * 60000,
+        });
+      }
+    }
+  }
+
+  // Add last config
+  interpolatedConfigs.push(g_fishConfigs[g_fishConfigs.length - 1]);
+
+  return interpolatedConfigs;
+}
