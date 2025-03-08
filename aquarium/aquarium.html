@@ -281,6 +281,7 @@
     uniform sampler2D normalMap;  // #normalMap
     uniform float shininess;
     uniform float specularFactor;
+    uniform vec4 fishColor;  // Add fishColor uniform
     // #fogUniforms
 
     vec4 lit(float l ,float h, float m) {
@@ -306,10 +307,11 @@
       vec3 halfVector = normalize(surfaceToLight + surfaceToView);
       vec4 litR = lit(dot(normal, surfaceToLight),
                         dot(normal, halfVector), shininess);
-      vec4 outColor = vec4(
-        (lightColor * (diffuseColor * litR.y + diffuseColor * ambient +
-                      specular * litR.z * specularFactor * normalSpec.a)).rgb,
+      vec4 baseColor = vec4(
+         (lightColor * (diffuseColor * litR.y + diffuseColor * ambient +
+                        specular * litR.z * specularFactor * normalSpec.a)).rgb,
           diffuseColor.a);
+      vec4 outColor = mix(baseColor, vec4(fishColor.rgb, baseColor.a), fishColor.a);
       // #fogCode
       gl_FragColor = outColor;
     }
@@ -342,6 +344,7 @@
     uniform samplerCube skybox; // #reflecton
     uniform float shininess;
     uniform float specularFactor;
+    uniform vec4 fishColor;  // Add fishColor uniform
     // #fogUniforms
 
     vec4 lit(float l ,float h, float m) {
@@ -371,12 +374,13 @@
       vec3 halfVector = normalize(surfaceToLight + surfaceToView);
       vec4 litR = lit(dot(normal, surfaceToLight),
                         dot(normal, halfVector), shininess);
-      vec4 outColor = vec4(mix(
+      vec4 baseColor = vec4(mix(
           skyColor,
           lightColor * (diffuseColor * litR.y + diffuseColor * ambient +
                         specular * litR.z * specularFactor * normalSpec.a),
           1.0 - reflection.r).rgb,
           diffuseColor.a);
+      vec4 outColor = mix(baseColor, vec4(fishColor.rgb, baseColor.a), fishColor.a);
       // #fogCode
       gl_FragColor = outColor;
     }
@@ -674,6 +678,7 @@
     uniform samplerCube skybox;
     uniform float shininess;
     uniform float specularFactor;
+    uniform vec4 fishColor;  // Add fishColor uniform
     // #fogUniforms
 
     vec4 lit(float l ,float h, float m) {
@@ -698,12 +703,13 @@
       vec3 halfVector = normalize(surfaceToLight + surfaceToView);
       vec4 litR = lit(dot(normal, surfaceToLight),
                         dot(normal, halfVector), shininess);
-      vec4 outColor = vec4(mix(
+      vec4 baseColor = vec4(mix(
           skyColor,
           lightColor * (diffuseColor * litR.y + diffuseColor * ambient +
                         specular * litR.z * specularFactor * normalSpec.a),
           1.0 - reflection.r).rgb,
           diffuseColor.a);
+      vec4 outColor = mix(baseColor, vec4(fishColor.rgb, baseColor.a), fishColor.a);
       // #fogCode
       gl_FragColor = outColor;
     }
@@ -770,6 +776,7 @@
     uniform float refractionFudge;
     uniform float eta;
     uniform float tankColorFudge;
+    uniform vec4 fishColor;  // Add fishColor uniform
     // #fogUniforms
 
     vec4 lit(float l ,float h, float m) {
@@ -799,15 +806,10 @@
       vec3 refractionVec = refract(surfaceToView, normal, eta);
 
       vec4 skyColor = textureCube(skybox, refractionVec);
-
-    //  vec4 bumpSkyColor = textureCube(skybox, refractionVec);
-    //  vec4 nonBumpSkyColor = textureCube(
-    //      skybox,
-    //      refract(surfaceToView, normalize(v_normal), eta));
-    //  vec4 skyColor = mix(nonBumpSkyColor, bumpSkyColor, normalSpec.a);
-      vec4 outColor = vec4(
+      vec4 baseColor = vec4(
           mix(skyColor * diffuseColor, diffuseColor, refraction.r).rgb,
           diffuseColor.a);
+      vec4 outColor = mix(baseColor, vec4(fishColor.rgb, baseColor.a), fishColor.a);
       // #fogCode
       gl_FragColor = outColor;
     }
@@ -871,6 +873,8 @@
     uniform samplerCube skybox;
     uniform float shininess;
     uniform float specularFactor;
+    uniform vec4 fishColor;  // Add fishColor uniform
+    // #fogUniforms
 
     vec4 lit(float l ,float h, float m) {
       return vec4(1.0,
@@ -904,10 +908,12 @@
               diffuseColor,
               (1.0 - reflection.r));
       float r = abs(dot(surfaceToView, normal));
-      gl_FragColor = vec4(mix(
+      vec4 baseColor = vec4(mix(
           skyColor,
           reflectColor,
           ((r + 0.3) * (reflection.r))).rgb, 1.0 - r);
+      vec4 outColor = mix(baseColor, vec4(fishColor.rgb, baseColor.a), fishColor.a);
+      gl_FragColor = outColor;
     }
   </script>
 </html>

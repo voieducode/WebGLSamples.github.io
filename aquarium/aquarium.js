@@ -1163,6 +1163,7 @@ function initialize() {
     shininess: 5,
     specularFactor: 0.3,
     ambient: ambient,
+    fishColor: new Float32Array([1, 1, 1, 1])  // Add this line
   };
   var fishConstMultiview = createMultiviewConst(fishConst);
 
@@ -1472,6 +1473,12 @@ function initialize() {
           var xClock = fishSpeedClock * fishXClock;
           var yClock = fishSpeedClock * fishYClock;
           var zClock = fishSpeedClock * fishZClock;
+
+          // Generate random color for each fish
+          fishConst.fishColor[0] = 0.5 + Math.random() * 0.5;  // Red
+          fishConst.fishColor[1] = 0.5 + Math.random() * 0.5;  // Green
+          fishConst.fishColor[2] = 0.5 + Math.random() * 0.5;  // Blue
+          fishConst.fishColor[3] = 0.5;  // Alpha
 
           fishPosition[0] = Math.sin(xClock) * xRadius;
           fishPosition[1] = Math.sin(yClock) * yRadius + fishHeight;
