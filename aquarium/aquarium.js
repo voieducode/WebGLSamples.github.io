@@ -353,14 +353,12 @@ var g_skyBoxUrls = [
   //  'static_assets/skybox/InteriorCubeEnv_EM.png'
 ];
 
-var g_csvData = loadCSVData();
-
-// Precompute fish configurations for each timestamp
-var g_fishConfigs = precomputeFishConfigs();
-var g_simulationStartTime = 0;
-var g_simulationTimeScale = 1 / 60; // 1 minute real time = 1 second simulation time
-
-console.log("g_fishConfigs len=", g_fishConfigs.length, " first 10:", g_fishConfigs.slice(0, 10));
+var g_simulationTimeScale = 60.0; // 60 seconds real time = 1 second simulation time
+var g_fishConfigs;
+var g_initialClockMs;
+var g_dataStartTime;
+var g_dataEndTime;
+var g_dataTimestamps;
 
 function Log(msg) {
   if (g_logGLCalls) {
@@ -1245,6 +1243,12 @@ function initialize() {
     eyeClock = now;
   }
 
+  Log("--Load CSV Data----------------------------------------");
+
+  // Precompute fish configurations for each timestamp
+
+  precomputeFishConfigs(now);
+
   function calculateViewMatrix(viewMatrix, q, v) {
     // According to webvr 1.1 spec, orientation is a quaternion.
     // 1. normalize orientation quaternion.
@@ -1295,6 +1299,8 @@ function initialize() {
     laser.setProgram(laser.programSet.getProgram(shadingSettings));
     lightRay.setProgram(lightRay.programSet.getProgram(shadingSettings));
   }
+
+  var cnt = 0;
 
   function render(
     projectionMatrix,
@@ -1439,6 +1445,9 @@ function initialize() {
     Log("--Draw Fish---------------------------------------");
 
     gl.enable(gl.BLEND);
+
+    const dataFishes = getConfigsAtClock(clock);
+
     for (var ff = 0; ff < g_fishTable.length; ++ff) {
       var fishInfo = g_fishTable[ff];
       var fishName = fishInfo.name;
@@ -1471,60 +1480,129 @@ function initialize() {
         var fishZClock = f.fishZClock;
         var fishPosition = fishPer.worldPosition;
         var fishNextPosition = fishPer.nextPosition;
-        for (var ii = 0; ii < numFish; ++ii) {
-          var fishClock = fishBaseClock + ii * fishOffset;
-          var speed = fishSpeed + math.pseudoRandom() * fishSpeedRange;
-          var scale = (1.0 + math.pseudoRandom() * 1) * fishScale;
-          var xRadius = fishRadius + pseudoRandom() * fishRadiusRange;
-          var yRadius = 2.0 + pseudoRandom() * fishHeightRange;
-          var zRadius = fishRadius + pseudoRandom() * fishRadiusRange;
-          var fishSpeedClock = fishClock * speed;
-          var xClock = fishSpeedClock * fishXClock;
-          var yClock = fishSpeedClock * fishYClock;
-          var zClock = fishSpeedClock * fishZClock;
 
-          // Generate random color for each fish depending on the index
-          if (ii % 5 === 0) {
-            fishPer.fishColor[0] = 0.6; // Red
-            fishPer.fishColor[1] = 0.0; // Green
-            fishPer.fishColor[2] = 0.0; // Blue
-            fishPer.fishColor[3] = 0.5; // Alpha
-          } else if (ii % 3 === 0) {
-            fishPer.fishColor[0] = 0.0; // Red
-            fishPer.fishColor[1] = 0.6; // Green
-            fishPer.fishColor[2] = 0,0; // Blue
-            fishPer.fishColor[3] = 0.5; // Alpha
-          } else {
-            fishPer.fishColor[0] = 0.0; // Red
-            fishPer.fishColor[1] = 0.0; // Green
-            fishPer.fishColor[2] = 0.5; // Blue
-            fishPer.fishColor[3] = 0.5; // Alpha
+        const fishesOfThisType = dataFishes.filter(
+          (fish) => fish.fishModel === fishName
+        );
+        if (dataFishes.length > 0) {
+          // Get the current fish config based on simulation time
+
+          // if (cnt++ < 100) {
+          //   console.debug(
+          //     "DBG clock=",
+          //     clock,
+          //     "fishName=",
+          //     fishName,
+          //     "fishes len",
+          //     fishesOfThisType.length,
+          //     "data",
+          //     fishesOfThisType
+          //   );
+          // }
+
+          for (var ii = 0; ii < fishesOfThisType.length; ++ii) {
+            const dataFish = fishesOfThisType[ii];
+            var fishClock = fishBaseClock + ii * fishOffset;
+            var speed = fishSpeed + dataFish.speedMultiplier * fishSpeedRange;
+            var scale = dataFish.scale * fishScale;
+            var xRadius = fishRadius + pseudoRandom() * fishRadiusRange;
+            var yRadius = 2.0 + pseudoRandom() * fishHeightRange;
+            var zRadius = fishRadius + pseudoRandom() * fishRadiusRange;
+            var fishSpeedClock = fishClock * speed;
+            var xClock = fishSpeedClock * fishXClock;
+            var yClock = fishSpeedClock * fishYClock;
+            var zClock = fishSpeedClock * fishZClock;
+
+            fishPer.fishColor[0] = dataFish.color[0];
+            fishPer.fishColor[1] = dataFish.color[1];
+            fishPer.fishColor[2] = dataFish.color[2];
+            fishPer.fishColor[3] = dataFish.color[3];
+
+            fishPosition[0] = Math.sin(xClock) * xRadius;
+            fishPosition[1] = Math.sin(yClock) * yRadius + fishHeight;
+            fishPosition[2] = Math.cos(zClock) * zRadius;
+            fishNextPosition[0] = Math.sin(xClock - 0.04) * xRadius;
+            fishNextPosition[1] =
+              Math.sin(yClock - 0.01) * yRadius + fishHeight;
+            fishNextPosition[2] = Math.cos(zClock - 0.04) * zRadius;
+            fishPer.scale = scale;
+
+            fishPer.time =
+              ((clock + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
+              (Math.PI * 2);
+            fish.draw(fishPer);
+
+            if (g.drawLasers && fishInfo.lasers) {
+              fishInfo.fishData[ii] = {
+                position: [fishPosition[0], fishPosition[1], fishPosition[2]],
+                target: [
+                  fishNextPosition[0],
+                  fishNextPosition[1],
+                  fishNextPosition[2],
+                ],
+                scale: scale,
+                time: fishPer.time,
+              };
+            }
           }
+        } else {
+          // Original fish movement code for when no configs are available
+          for (var ii = 0; ii < numFish; ++ii) {
+            var fishClock = fishBaseClock + ii * fishOffset;
+            var speed = fishSpeed + math.pseudoRandom() * fishSpeedRange;
+            var scale = (1.0 + math.pseudoRandom() * 1) * fishScale;
+            var xRadius = fishRadius + pseudoRandom() * fishRadiusRange;
+            var yRadius = 2.0 + pseudoRandom() * fishHeightRange;
+            var zRadius = fishRadius + pseudoRandom() * fishRadiusRange;
+            var fishSpeedClock = fishClock * speed;
+            var xClock = fishSpeedClock * fishXClock;
+            var yClock = fishSpeedClock * fishYClock;
+            var zClock = fishSpeedClock * fishZClock;
 
-          fishPosition[0] = Math.sin(xClock) * xRadius;
-          fishPosition[1] = Math.sin(yClock) * yRadius + fishHeight;
-          fishPosition[2] = Math.cos(zClock) * zRadius;
-          fishNextPosition[0] = Math.sin(xClock - 0.04) * xRadius;
-          fishNextPosition[1] = Math.sin(yClock - 0.01) * yRadius + fishHeight;
-          fishNextPosition[2] = Math.cos(zClock - 0.04) * zRadius;
-          fishPer.scale = scale;
+            // Generate random color for each fish depending on the index
+            if (ii % 5 === 0) {
+              fishPer.fishColor[0] = 0.6; // Red
+              fishPer.fishColor[1] = 0.0; // Green
+              fishPer.fishColor[2] = 0.0; // Blue
+              fishPer.fishColor[3] = 0.5; // Alpha
+            } else if (ii % 3 === 0) {
+              fishPer.fishColor[0] = 0.0; // Red
+              fishPer.fishColor[1] = 0.6; // Green
+              fishPer.fishColor[2] = 0.0; // Blue
+              fishPer.fishColor[3] = 0.5; // Alpha
+            } else {
+              fishPer.fishColor[0] = 0.0; // Red
+              fishPer.fishColor[1] = 0.0; // Green
+              fishPer.fishColor[2] = 0.5; // Blue
+              fishPer.fishColor[3] = 0.5; // Alpha
+            }
 
-          fishPer.time =
-            ((clock + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
-            (Math.PI * 2);
-          fish.draw(fishPer);
+            fishPosition[0] = Math.sin(xClock) * xRadius;
+            fishPosition[1] = Math.sin(yClock) * yRadius + fishHeight;
+            fishPosition[2] = Math.cos(zClock) * zRadius;
+            fishNextPosition[0] = Math.sin(xClock - 0.04) * xRadius;
+            fishNextPosition[1] =
+              Math.sin(yClock - 0.01) * yRadius + fishHeight;
+            fishNextPosition[2] = Math.cos(zClock - 0.04) * zRadius;
+            fishPer.scale = scale;
 
-          if (g.drawLasers && fishInfo.lasers) {
-            fishInfo.fishData[ii] = {
-              position: [fishPosition[0], fishPosition[1], fishPosition[2]],
-              target: [
-                fishNextPosition[0],
-                fishNextPosition[1],
-                fishNextPosition[2],
-              ],
-              scale: scale,
-              time: fishPer.time,
-            };
+            fishPer.time =
+              ((clock + ii * g_tailOffsetMult) * fishTailSpeed * speed) %
+              (Math.PI * 2);
+            fish.draw(fishPer);
+
+            if (g.drawLasers && fishInfo.lasers) {
+              fishInfo.fishData[ii] = {
+                position: [fishPosition[0], fishPosition[1], fishPosition[2]],
+                target: [
+                  fishNextPosition[0],
+                  fishNextPosition[1],
+                  fishNextPosition[2],
+                ],
+                scale: scale,
+                time: fishPer.time,
+              };
+            }
           }
         }
       }
@@ -2602,7 +2680,7 @@ function loadCSVData() {
     const csvText = xhr.responseText;
     const data = parseCSVToJSON(csvText);
     console.log(
-      "Loaded CSV data: len=",
+      "DBG Loaded CSV data: len=",
       data.length,
       "first 10:",
       data.slice(0, 10)
@@ -2615,88 +2693,219 @@ function loadCSVData() {
 }
 
 // Precompute fish configurations from CSV data
-function precomputeFishConfigs() {
-  if (!g_csvData || g_csvData.length === 0) {
+function precomputeFishConfigs(clockSeconds) {
+  var csvData = loadCSVData();
+
+  if (!csvData || csvData.length === 0) {
     console.error("No CSV data available");
     return;
   }
-  // Set simulation start time to first timestamp
-  g_simulationStartTime = g_csvData[0].Time;
 
-  const getFishModel = (sizeBucket) => {
-    if (sizeBucket === "very small") return "SmallFishA";
-    if (sizeBucket === "small") return "MediumFishA";
-    if (sizeBucket === "medium") return "MediumFishB";
-    if (sizeBucket === "large") return "BigFishA";
-    if (sizeBucket === "very large") return "BigFishB";
-    return "SmallFishA";
+  const getFishModel = (cpu) => {
+    if (cpu <= 10.0) return "SmallFishA";
+    if (cpu <= 25.0) return "MediumFishA";
+    if (cpu <= 40.0) return "MediumFishB";
+    if (cpu <= 60.0) return "BigFishA";
+    return "BigFishB";
   };
 
-  const getSpeedMultiplier = (speedBucket) => {
-    if (speedBucket === "very slow") return 0.25;
-    if (speedBucket === "slow") return 0.5;
-    if (speedBucket === "average") return 1.0;
-    if (speedBucket === "fast") return 1.5;
-    if (speedBucket === "very fast") return 4.0;
-    return 1.0;
+  const getSpeedMultiplier = (latency) => {
+    if (latency >= 1000.0) return 0.25;
+    if (latency >= 750.0) return 0.5;
+    if (latency >= 500.0) return 1.0;
+    if (latency >= 250) return 1.5;
+    return 4.0;
   };
 
-  const getFishColor = (speedBucket) => {
-    if (speedBucket === "very slow") return [1.0, 0.0, 0.0, 1.0]; // Red
-    if (speedBucket === "slow") return [1.0, 0.5, 0.0, 1.0]; // Orange
-    if (speedBucket === "average") return [1.0, 1.0, 0.0, 1.0]; // Yellow
-    if (speedBucket === "fast") return [0.0, 1.0, 0.5, 1.0]; // Light Green
-    if (speedBucket === "very fast") return [0.0, 1.0, 0.0, 1.0]; // Green
-    return [1.0, 1.0, 1.0, 1.0]; // Default to white
+  const getFishColor = (latency) => {
+    if (latency >= 1000.0) return [1.0, 0.0, 0.0, 0.5]; // Red
+    if (latency >= 750.0) return [1.0, 0.5, 0.0, 0.5]; // Orange
+    if (latency >= 500.0) return [1.0, 1.0, 0.0, 0.5]; // Yellow
+    if (latency >= 250.0) return [0.0, 0.7, 0.5, 0.5]; // Light Green
+    return [1.0, 1.0, 1.0, 0.0]; // White
+  };
+
+  const getFishScale = (cpu) => {
+    return 1.0 + cpu / 100.0;
   };
 
   // Create configurations for each timestamp
-  g_fishConfigs = g_csvData.map((entry) => {
+  var dataConfigs = csvData.map((entry) => {
     return {
       name: entry.Name,
-      fishModel: getFishModel(entry.SizeBucket),
-      speedMultiplier: getSpeedMultiplier(entry.SpeedBucket),
-      color: getFishColor(entry.SpeedBucket),
+      fishModel: getFishModel(entry.CPU),
+      speedMultiplier: getSpeedMultiplier(entry.FarmLatency95),
+      scale: getFishScale(entry.CPU),
+      color: getFishColor(entry.FarmLatency95),
       timestamp: entry.Time,
     };
   });
 
-  // Interpolate configurations between timestamps
+  // Sort configurations by timestamp
+  dataConfigs.sort((a, b) => a.timestamp - b.timestamp);
+
+  // Find the time range
+  const startTime = dataConfigs[0].timestamp;
+  const endTime = dataConfigs[dataConfigs.length - 1].timestamp;
+  const totalMinutes = Math.ceil((endTime - startTime) / 60000);
+
+  // Create a map to track the last known configuration for each fish
+  const lastKnownConfigs = new Map();
+
+  // Initialize interpolatedConfigs with entries for every minute
   const interpolatedConfigs = [];
-  for (let i = 0; i < g_fishConfigs.length - 1; i++) {
-    const current = g_fishConfigs[i];
-    const next = g_fishConfigs[i + 1];
-    const timeDiff = next.timestamp - current.timestamp;
 
-    // Add current config
-    interpolatedConfigs.push(current);
+  // First, populate the lastKnownConfigs map with initial values
+  dataConfigs.forEach((config) => {
+    if (!lastKnownConfigs.has(config.name)) {
+      lastKnownConfigs.set(config.name, config);
+    }
+  });
 
-    // Interpolate between timestamps
-    if (timeDiff > 60000) {
-      // If more than 1 minute between timestamps
-      const numInterpolations = Math.floor(timeDiff / 60000) - 1;
-      for (let j = 0; j < numInterpolations; j++) {
-        const t = (j + 1) / (numInterpolations + 1);
-        interpolatedConfigs.push({
-          name: current.name,
-          fishModel: current.fishModel,
-          speedMultiplier:
-            current.speedMultiplier +
-            (next.speedMultiplier - current.speedMultiplier) * t,
+  // Create entries for every minute
+  for (let minute = 0; minute <= totalMinutes; minute++) {
+    const currentTime = startTime + minute * 60000;
+
+    // Find the next configuration for each fish
+    const nextConfigs = dataConfigs.filter(
+      (config) => config.timestamp > currentTime
+    );
+
+    // For each fish, either use its next config or interpolate from last known
+    lastKnownConfigs.forEach((lastConfig, fishName) => {
+      const nextConfig = nextConfigs.find((config) => config.name === fishName);
+
+      if (nextConfig) {
+        // Calculate interpolation factor
+        const t =
+          (currentTime - lastConfig.timestamp) /
+          (nextConfig.timestamp - lastConfig.timestamp);
+
+        // Interpolate all values
+        const interpolatedConfig = {
+          name: fishName,
+          fishModel: lastConfig.fishModel,
+          speedMultiplier: lastConfig.speedMultiplier,
+          scale: lastConfig.scale,
           color: [
-            current.color[0] + (next.color[0] - current.color[0]) * t,
-            current.color[1] + (next.color[1] - current.color[1]) * t,
-            current.color[2] + (next.color[2] - current.color[2]) * t,
-            1.0,
+            lastConfig.color[0] +
+              (nextConfig.color[0] - lastConfig.color[0]) * t,
+            lastConfig.color[1] +
+              (nextConfig.color[1] - lastConfig.color[1]) * t,
+            lastConfig.color[2] +
+              (nextConfig.color[2] - lastConfig.color[2]) * t,
+            lastConfig.color[3],
           ],
-          timestamp: current.timestamp + (j + 1) * 60000,
+          timestamp: currentTime,
+        };
+
+        interpolatedConfigs.push(interpolatedConfig);
+        lastKnownConfigs.set(fishName, interpolatedConfig);
+      } else {
+        // If no next config, use the last known config
+        interpolatedConfigs.push({
+          ...lastConfig,
+          timestamp: currentTime,
         });
       }
+    });
+  }
+
+  // Sort interpolatedConfigs by timestamp and fish name
+  interpolatedConfigs.sort((a, b) => {
+    if (a.timestamp !== b.timestamp) {
+      return a.timestamp - b.timestamp;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  console.log(
+    `DBG Generated ${interpolatedConfigs.length} interpolated configurations`
+  );
+  console.log(
+    `DBG Time range: ${startTime} to ${endTime} (${totalMinutes} minutes)`
+  );
+  console.log(`DBG Number of unique fish: ${lastKnownConfigs.size}`);
+  console.log(
+    `DBG Configurations per minute: ${
+      interpolatedConfigs.length / (totalMinutes + 1)
+    }`
+  );
+
+  g_dataTimestamps = [
+    ...new Set(interpolatedConfigs.map((config) => config.timestamp)),
+  ].sort((a, b) => a - b);
+
+  g_fishConfigs = interpolatedConfigs;
+  g_dataStartTime = startTime;
+  g_dataEndTime = endTime;
+  g_initialClockMs = clockSeconds * 1000;
+
+  console.log(
+    "DBG initial clock=",
+    g_initialClockMs,
+    "g_dataTimestamps len=",
+    g_dataTimestamps.length,
+    "g_fishConfigs len=",
+    g_fishConfigs.length,
+    " first 10:",
+    g_fishConfigs.slice(0, 10)
+  );
+}
+
+function getConfigsAtClock(clockFromZero) {
+  if (!g_dataTimestamps || g_dataTimestamps.length === 0) {
+    console.error("No fish timestamps available");
+    return 0;
+  }
+
+  // Convert simulation time to milliseconds
+  const clockMsFromZero = clockFromZero * 1000 * g_simulationTimeScale;
+
+  // Calculate the total time range
+  const timeRange = g_dataEndTime - g_dataStartTime;
+
+  // Normalize the simulation time to be within the range
+  let normalizedTime = g_dataStartTime + clockMsFromZero;
+  if (normalizedTime > g_dataEndTime) {
+    normalizedTime =
+      g_dataStartTime + ((normalizedTime - g_dataStartTime) % timeRange);
+  }
+
+  // Binary search to find the closest timestamp
+  let left = 0;
+  let right = g_dataTimestamps.length - 1;
+
+  // Handle edge cases
+  if (g_dataTimestamps.length === 0) return 0;
+  if (normalizedTime <= g_dataTimestamps[0]) return 0;
+  if (normalizedTime >= g_dataTimestamps[right]) return right;
+
+  // Binary search
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    const midTimestamp = g_dataTimestamps[mid];
+
+    if (midTimestamp === normalizedTime) {
+      return mid;
+    }
+
+    if (midTimestamp < normalizedTime) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
     }
   }
 
-  // Add last config
-  interpolatedConfigs.push(g_fishConfigs[g_fishConfigs.length - 1]);
+  // After binary search, left and right will be adjacent
+  // Find the closer of the two
+  const leftDiff = Math.abs(g_dataTimestamps[left] - normalizedTime);
+  const rightDiff = Math.abs(g_dataTimestamps[right] - normalizedTime);
 
-  return interpolatedConfigs;
+  const matchedTimestamp =
+    g_dataTimestamps[leftDiff < rightDiff ? left : right];
+
+  return g_fishConfigs.filter(
+    (config) => config.timestamp === matchedTimestamp
+  );
 }
