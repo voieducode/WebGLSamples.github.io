@@ -1162,7 +1162,7 @@ function initialize() {
     specular: one4,
     shininess: 5,
     specularFactor: 0.3,
-    ambient: ambient
+    ambient: ambient,
   };
   var fishConstMultiview = createMultiviewConst(fishConst);
 
@@ -1170,7 +1170,7 @@ function initialize() {
     worldPosition: new Float32Array(3), //[0,0,0],
     nextPosition: new Float32Array(3), //[0,0,0],
     scale: 1,
-    fishColor: new Float32Array([1, 1, 1, 1])  // Add fishColor here
+    fishColor: new Float32Array([1, 1, 1, 0]), // Add fishColor here
   };
 
   // lightRay uniforms.
@@ -1474,11 +1474,23 @@ function initialize() {
           var yClock = fishSpeedClock * fishYClock;
           var zClock = fishSpeedClock * fishZClock;
 
-          // Generate random color for each fish
-          fishPer.fishColor[0] = 0.5 + Math.random() * 0.5;  // Red
-          fishPer.fishColor[1] = 0.5 + Math.random() * 0.5;  // Green
-          fishPer.fishColor[2] = 0.5 + Math.random() * 0.5;  // Blue
-          fishPer.fishColor[3] = 0.5;  // Alpha
+          // Generate random color for each fish depending on the index
+          if (ii % 5 === 0) {
+            fishPer.fishColor[0] = 0.6; // Red
+            fishPer.fishColor[1] = 0.0; // Green
+            fishPer.fishColor[2] = 0.0; // Blue
+            fishPer.fishColor[3] = 0.5; // Alpha
+          } else if (ii % 3 === 0) {
+            fishPer.fishColor[0] = 0.0; // Red
+            fishPer.fishColor[1] = 0.6; // Green
+            fishPer.fishColor[2] = 0,0; // Blue
+            fishPer.fishColor[3] = 0.5; // Alpha
+          } else {
+            fishPer.fishColor[0] = 0.0; // Red
+            fishPer.fishColor[1] = 0.0; // Green
+            fishPer.fishColor[2] = 0.5; // Blue
+            fishPer.fishColor[3] = 0.5; // Alpha
+          }
 
           fishPosition[0] = Math.sin(xClock) * xRadius;
           fishPosition[1] = Math.sin(yClock) * yRadius + fishHeight;
